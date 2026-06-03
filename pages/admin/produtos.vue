@@ -39,10 +39,14 @@ const produtoVazio = (): ProdutoFormulario => ({
 
 const formulario = reactive<ProdutoFormulario>(produtoVazio())
 
-const { data: dadosCategorias } = await useFetch<{ categorias: Categoria[] }>(
-  '/api/categorias',
-  { default: () => ({ categorias: [] }) }
-)
+const {
+  data: dadosCategorias,
+  refresh: recarregarCategorias
+} = await useFetch<{ categorias: Categoria[] }>('/api/admin/categorias', {
+  default: () => ({ categorias: [] }),
+  immediate: false,
+  credentials: 'include'
+})
 
 const {
   data: dadosProdutos,
@@ -60,7 +64,7 @@ async function carregarProdutos() {
   erroAdmin.value = ''
 
   try {
-    await recarregarProdutos()
+    await Promise.all([recarregarCategorias(), recarregarProdutos()])
     if (!formulario.categoriaId) {
       formulario.categoriaId = categorias.value[0]?.id ?? 0
     }
@@ -172,7 +176,7 @@ async function inativarProduto(produto: Produto) {
           <select v-model.number="formulario.categoriaId" required>
             <option value="0" disabled>Selecione</option>
             <option v-for="categoria in categorias" :key="categoria.id" :value="categoria.id">
-              {{ categoria.nome }}
+              {{ categoria.nome }}{{ categoria.ativo ? '' : ' (inativa)' }}
             </option>
           </select>
         </label>
