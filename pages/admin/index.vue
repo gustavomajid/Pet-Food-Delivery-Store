@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ClipboardList, LogOut, Package, Tags } from '@lucide/vue'
+import { ClipboardList, LogOut, Package, Settings, Tags } from '@lucide/vue'
 
 const senha = ref('')
 const logado = ref(false)
@@ -108,6 +108,12 @@ function abrirArea(caminho: string) {
       </section>
 
       <section class="admin-menu">
+        <a class="atalho-admin" href="/admin/configuracoes" @click.prevent="abrirArea('/admin/configuracoes')">
+          <Settings :size="26" aria-hidden="true" />
+          <strong>Configuracoes</strong>
+          <span>Controlar preferencias da loja online.</span>
+        </a>
+
         <a class="atalho-admin" href="/admin/categorias" @click.prevent="abrirArea('/admin/categorias')">
           <Tags :size="26" aria-hidden="true" />
           <strong>Categorias</strong>

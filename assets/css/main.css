@@ -616,6 +616,19 @@ a {
   background: #fff;
 }
 
+.cartao-endereco-modal--botao {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.cartao-endereco-modal--ativo {
+  border-color: rgba(47, 111, 69, 0.48);
+  background: #eef8ee;
+}
+
 .cartao-endereco-modal strong,
 .cartao-endereco-modal p,
 .cartao-endereco-modal small {
@@ -930,6 +943,41 @@ a {
 .pedido-sucesso strong,
 .pedido-sucesso span {
   display: block;
+}
+
+.formulario-admin .linha-configuracao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--linha);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.linha-configuracao span,
+.linha-configuracao strong,
+.linha-configuracao small {
+  display: block;
+}
+
+.linha-configuracao strong {
+  color: var(--texto);
+}
+
+.linha-configuracao small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.linha-configuracao input {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  accent-color: var(--verde);
 }
 
 .admin {

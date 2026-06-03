@@ -40,6 +40,12 @@ export const categorias = pgTable('categorias', {
   criadoEm: timestamp('criado_em', { withTimezone: true }).notNull().defaultNow()
 })
 
+export const configuracoesLoja = pgTable('configuracoes_loja', {
+  id: integer('id').primaryKey(),
+  modalIdentificacaoAtivo: boolean('modal_identificacao_ativo').notNull().default(true),
+  atualizadoEm: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow()
+})
+
 export const produtos = pgTable('produtos', {
   id: serial('id').primaryKey(),
   nome: varchar('nome', { length: 160 }).notNull(),

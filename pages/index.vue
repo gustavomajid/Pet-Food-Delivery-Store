@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Search, Settings, ShoppingBasket, Truck } from '@lucide/vue'
-import type { Categoria, Produto } from '~/types/loja'
+import type { Categoria, ConfiguracoesLoja, Produto } from '~/types/loja'
 
 const config = useRuntimeConfig()
 const busca = ref('')
@@ -16,6 +16,11 @@ const consultaProdutos = computed(() => ({
 const { data: dadosCategorias } = await useFetch<{ categorias: Categoria[] }>(
   '/api/categorias',
   { default: () => ({ categorias: [] }) }
+)
+
+const { data: dadosConfiguracoes } = await useFetch<{ configuracoes: ConfiguracoesLoja }>(
+  '/api/configuracoes',
+  { default: () => ({ configuracoes: { modalIdentificacaoAtivo: true } }) }
 )
 
 const {
@@ -37,7 +42,9 @@ const { formatarCentavos } = useDinheiro()
 const { abrirModalIdentificacao } = useClienteReconhecimento()
 
 onMounted(() => {
-  abrirModalIdentificacao()
+  if (dadosConfiguracoes.value?.configuracoes.modalIdentificacaoAtivo !== false) {
+    abrirModalIdentificacao()
+  }
 })
 </script>
 

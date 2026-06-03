@@ -5,6 +5,10 @@ export type Categoria = {
   ativo: boolean
 }
 
+export type ConfiguracoesLoja = {
+  modalIdentificacaoAtivo: boolean
+}
+
 export type Produto = {
   id: number
   nome: string

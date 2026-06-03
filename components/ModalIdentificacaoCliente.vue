@@ -20,6 +20,8 @@ const nome = ref('')
 const carregando = ref(false)
 const erro = ref('')
 const estado = ref<'inicial' | 'encontrado' | 'novo'>('inicial')
+const enderecoSelecionado = ref(false)
+const enderecoRetirada = 'Retirada na loja'
 
 const opcoesRecebimento: Array<{
   valor: TipoEntrega
@@ -35,6 +37,9 @@ const telefoneValido = computed(() => normalizarTelefone(telefone.value).length 
 const clienteTemDados = computed(() =>
   Boolean(clienteAtual.value?.nomeCliente || clienteAtual.value?.enderecoEntrega)
 )
+const clienteTemEndereco = computed(() =>
+  Boolean(clienteAtual.value?.enderecoEntrega && clienteAtual.value.enderecoEntrega !== enderecoRetirada)
+)
 
 function preencherFormulario() {
   if (!clienteAtual.value) {
@@ -47,6 +52,25 @@ function preencherFormulario() {
   if (clienteAtual.value.tipoEntrega) {
     tipoEntrega.value = clienteAtual.value.tipoEntrega
   }
+}
+
+function selecionarEndereco() {
+  const cliente = clienteAtual.value
+
+  if (!cliente?.enderecoEntrega || cliente.enderecoEntrega === enderecoRetirada) {
+    return
+  }
+
+  enderecoSelecionado.value = true
+  tipoEntrega.value = 'entrega_local'
+
+  identificarCliente({
+    telefoneCliente: telefone.value || cliente.telefoneCliente,
+    nomeCliente: nome.value || cliente.nomeCliente,
+    cep: cliente.cep,
+    enderecoEntrega: cliente.enderecoEntrega,
+    tipoEntrega: 'entrega_local'
+  })
 }
 
 async function reconhecerCliente() {
@@ -81,6 +105,7 @@ async function reconhecerCliente() {
 
 function selecionarRecebimento(valor: TipoEntrega) {
   tipoEntrega.value = valor
+  enderecoSelecionado.value = valor === 'entrega_local' && clienteTemEndereco.value
 
   if (!telefoneValido.value) {
     return
@@ -88,16 +113,22 @@ function selecionarRecebimento(valor: TipoEntrega) {
 
   identificarCliente({
     telefoneCliente: telefone.value,
-    nomeCliente: nome.value || undefined,
+    nomeCliente: nome.value || clienteAtual.value?.nomeCliente,
+    cep: clienteAtual.value?.cep,
+    enderecoEntrega: clienteAtual.value?.enderecoEntrega,
     tipoEntrega: valor
   })
 }
 
 function continuar() {
+  const cliente = clienteAtual.value
+
   if (telefoneValido.value) {
     identificarCliente({
-      telefoneCliente: telefone.value,
-      nomeCliente: nome.value || undefined,
+      telefoneCliente: telefone.value || cliente?.telefoneCliente || '',
+      nomeCliente: nome.value || cliente?.nomeCliente,
+      cep: cliente?.cep,
+      enderecoEntrega: cliente?.enderecoEntrega,
       tipoEntrega: tipoEntrega.value
     })
   }
@@ -158,9 +189,14 @@ watch(clienteAtual, preencherFormulario)
         <p v-if="erro" class="erro-formulario">{{ erro }}</p>
         <p v-else-if="estado === 'novo'" class="aviso-formulario">Telefone registrado para este pedido.</p>
 
-        <section v-if="clienteAtual && clienteTemDados" class="bloco-identificacao">
+        <section v-if="clienteAtual && clienteTemEndereco" class="bloco-identificacao">
           <h2>Ultimo endereco utilizado</h2>
-          <article class="cartao-endereco-modal">
+          <button
+            class="cartao-endereco-modal cartao-endereco-modal--botao"
+            :class="{ 'cartao-endereco-modal--ativo': enderecoSelecionado }"
+            type="button"
+            @click="selecionarEndereco"
+          >
             <MapPin :size="30" aria-hidden="true" />
             <div>
               <span class="etiqueta-endereco">
@@ -171,7 +207,7 @@ watch(clienteAtual, preencherFormulario)
               <p>{{ clienteAtual.enderecoEntrega || 'Endereco sera preenchido na finalizacao' }}</p>
               <small>{{ formatarTelefone(clienteAtual.telefoneCliente) }}</small>
             </div>
-          </article>
+          </button>
         </section>
 
         <section class="bloco-identificacao">

@@ -107,6 +107,7 @@ async function sair() {
 
         <nav class="acoes-topo" aria-label="Acoes do painel">
           <a class="botao-admin botao-admin--secundario" href="/admin">Painel</a>
+          <a class="botao-admin botao-admin--secundario" href="/admin/configuracoes">Configuracoes</a>
           <a class="botao-admin botao-admin--secundario" href="/admin/categorias">Categorias</a>
           <a class="botao-admin botao-admin--secundario" href="/admin/produtos">Produtos</a>
           <a class="botao-admin botao-admin--secundario" href="/admin/pedidos">Pedidos</a>
