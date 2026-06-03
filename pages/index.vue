@@ -34,6 +34,11 @@ const destaques = computed(() => produtos.value.filter((produto) => produto.dest
 
 const { quantidadeItens, subtotalCentavos, adicionarProduto, aberto } = useCarrinho()
 const { formatarCentavos } = useDinheiro()
+const { abrirModalIdentificacao } = useClienteReconhecimento()
+
+onMounted(() => {
+  abrirModalIdentificacao()
+})
 </script>
 
 <template>
@@ -158,5 +163,6 @@ const { formatarCentavos } = useDinheiro()
     </button>
 
     <PainelCarrinho />
+    <ModalIdentificacaoCliente />
   </main>
 </template>

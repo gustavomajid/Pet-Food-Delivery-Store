@@ -83,3 +83,13 @@ export type ItemPedidoResumo = {
   precoUnitarioCentavos: number
   subtotalCentavos: number
 }
+
+export type ClienteReconhecido = {
+  telefoneCliente: string
+  telefoneNormalizado: string
+  nomeCliente?: string
+  cep?: string
+  enderecoEntrega?: string
+  tipoEntrega?: TipoEntrega
+  atualizadoEm: string
+}

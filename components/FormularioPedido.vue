@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { CheckCircle2 } from '@lucide/vue'
+import { CheckCircle2, Clock, Store, Truck } from '@lucide/vue'
+import type { Component } from 'vue'
 import type { FormaPagamento, PedidoPayload, PedidoResumo, TipoEntrega } from '~/types/loja'
 
 type EnderecoCep = {
@@ -17,17 +18,18 @@ const emitir = defineEmits<{
 
 const { itens, tipoEntrega, limpar } = useCarrinho()
 const { formatarCentavos } = useDinheiro()
+const { clienteAtual, carregarClientes, salvarCliente } = useClienteReconhecimento()
 
-const opcoesEntrega: Array<{ valor: TipoEntrega; texto: string }> = [
-  { valor: 'entrega_local', texto: 'Entrega' },
-  { valor: 'retirada', texto: 'Retirada' },
-  { valor: 'agendada', texto: 'Agendada' }
+const opcoesEntrega: Array<{ valor: TipoEntrega; texto: string; icone: Component }> = [
+  { valor: 'entrega_local', texto: 'Entrega', icone: Truck },
+  { valor: 'retirada', texto: 'Retirada', icone: Store },
+  { valor: 'agendada', texto: 'Agendada', icone: Clock }
 ]
 
 const opcoesPagamento: Array<{ valor: FormaPagamento; texto: string }> = [
   { valor: 'pix', texto: 'Pix' },
   { valor: 'dinheiro', texto: 'Dinheiro' },
-  { valor: 'cartao_entrega', texto: 'Cartão' }
+  { valor: 'cartao_entrega', texto: 'Cartao' }
 ]
 
 const formulario = reactive({
@@ -45,6 +47,17 @@ const erro = ref('')
 const erroCep = ref('')
 const ultimoCepConsultado = ref('')
 const ultimoPedido = ref<PedidoResumo | null>(null)
+const enderecoEntregaSalvo = ref('')
+const enderecoRetirada = 'Retirada na loja'
+
+const rotuloEndereco = computed(() =>
+  tipoEntrega.value === 'retirada' ? 'Local de retirada' : 'Endereco'
+)
+const placeholderEndereco = computed(() =>
+  tipoEntrega.value === 'retirada'
+    ? 'Retirada na loja'
+    : 'Rua, numero, bairro, cidade'
+)
 
 function digitosCep() {
   return formulario.cep.replace(/\D/g, '').slice(0, 8)
@@ -62,6 +75,53 @@ function montarEndereco(dados: EnderecoCep) {
   ].filter(Boolean)
 
   return partes.join(', ')
+}
+
+function aplicarClienteReconhecido() {
+  const cliente = clienteAtual.value
+
+  if (!cliente) {
+    return
+  }
+
+  if (!formulario.telefoneCliente) {
+    formulario.telefoneCliente = cliente.telefoneCliente
+  }
+
+  if (!formulario.nomeCliente && cliente.nomeCliente) {
+    formulario.nomeCliente = cliente.nomeCliente
+  }
+
+  if (!formulario.cep && cliente.cep) {
+    formulario.cep = cliente.cep
+  }
+
+  if (cliente.enderecoEntrega && cliente.enderecoEntrega !== enderecoRetirada) {
+    enderecoEntregaSalvo.value = cliente.enderecoEntrega
+  }
+
+  if (!formulario.enderecoEntrega && cliente.enderecoEntrega) {
+    formulario.enderecoEntrega = cliente.enderecoEntrega
+  }
+
+  if (cliente.tipoEntrega) {
+    tipoEntrega.value = cliente.tipoEntrega
+  }
+}
+
+function ajustarEnderecoPorEntrega() {
+  if (tipoEntrega.value === 'retirada') {
+    if (formulario.enderecoEntrega && formulario.enderecoEntrega !== enderecoRetirada) {
+      enderecoEntregaSalvo.value = formulario.enderecoEntrega
+    }
+
+    formulario.enderecoEntrega = enderecoRetirada
+    return
+  }
+
+  if (formulario.enderecoEntrega === enderecoRetirada) {
+    formulario.enderecoEntrega = enderecoEntregaSalvo.value || ''
+  }
 }
 
 async function consultarCep() {
@@ -144,16 +204,33 @@ async function enviarPedido() {
       body: payload
     })
 
+    salvarCliente({
+      telefoneCliente: formulario.telefoneCliente,
+      nomeCliente: formulario.nomeCliente,
+      cep: formulario.cep || undefined,
+      enderecoEntrega: formulario.enderecoEntrega,
+      tipoEntrega: tipoEntrega.value
+    })
+
     ultimoPedido.value = resposta.pedido
     limpar()
     emitir('concluido', resposta.pedido)
   } catch (error) {
     erro.value =
-      error instanceof Error ? error.message : 'Não foi possível fechar o pedido.'
+      error instanceof Error ? error.message : 'Nao foi possivel fechar o pedido.'
   } finally {
     enviando.value = false
   }
 }
+
+onMounted(() => {
+  carregarClientes()
+  aplicarClienteReconhecido()
+  ajustarEnderecoPorEntrega()
+})
+
+watch(clienteAtual, aplicarClienteReconhecido)
+watch(tipoEntrega, ajustarEnderecoPorEntrega)
 </script>
 
 <template>
@@ -194,17 +271,20 @@ async function enviarPedido() {
 
       <fieldset>
         <legend>Entrega</legend>
-        <div class="controle-segmentado">
+        <div class="opcoes-recebimento-formulario">
           <label v-for="opcao in opcoesEntrega" :key="opcao.valor">
             <input v-model="tipoEntrega" type="radio" name="tipoEntrega" :value="opcao.valor">
-            <span>{{ opcao.texto }}</span>
+            <span>
+              <component :is="opcao.icone" :size="18" aria-hidden="true" />
+              {{ opcao.texto }}
+            </span>
           </label>
         </div>
       </fieldset>
 
       <label>
-        Endereço
-        <textarea v-model="formulario.enderecoEntrega" rows="3" required />
+        {{ rotuloEndereco }}
+        <textarea v-model="formulario.enderecoEntrega" rows="3" :placeholder="placeholderEndereco" required />
       </label>
 
       <fieldset>
@@ -223,7 +303,7 @@ async function enviarPedido() {
       </fieldset>
 
       <label>
-        Observações
+        Observacoes
         <textarea v-model="formulario.observacoes" rows="2" />
       </label>
 
