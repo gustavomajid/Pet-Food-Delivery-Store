@@ -5,6 +5,7 @@ import type { PedidoResumo } from '~/types/loja'
 const route = useRoute()
 const router = useRouter()
 const idPedido = computed(() => String(route.params.id || ''))
+const INTERVALO_ATUALIZACAO_PEDIDO_MS = 7000
 
 const {
   data,
@@ -18,12 +19,62 @@ const {
 const pedido = computed(() => data.value?.pedido ?? null)
 const { registrarPedido } = useHistoricoPedidos()
 const { quantidadeItens, aberto } = useCarrinho()
+const atualizandoPedido = ref(false)
+let intervaloAtualizacaoPedido: ReturnType<typeof setInterval> | undefined
+
+const pedidoEncerrado = computed(() =>
+  pedido.value ? ['finalizado', 'cancelado'].includes(pedido.value.status) : false
+)
 
 watch(pedido, (valor) => {
   if (valor) {
     registrarPedido(valor)
   }
 }, { immediate: true })
+
+onMounted(() => {
+  intervaloAtualizacaoPedido = setInterval(() => {
+    void atualizarPedidoAutomaticamente()
+  }, INTERVALO_ATUALIZACAO_PEDIDO_MS)
+
+  document.addEventListener('visibilitychange', atualizarPedidoAoVoltarParaAba)
+})
+
+onBeforeUnmount(() => {
+  if (intervaloAtualizacaoPedido) {
+    clearInterval(intervaloAtualizacaoPedido)
+  }
+
+  document.removeEventListener('visibilitychange', atualizarPedidoAoVoltarParaAba)
+})
+
+async function atualizarPedido() {
+  if (atualizandoPedido.value || pending.value) {
+    return
+  }
+
+  atualizandoPedido.value = true
+
+  try {
+    await refresh()
+  } finally {
+    atualizandoPedido.value = false
+  }
+}
+
+async function atualizarPedidoAutomaticamente() {
+  if (pedidoEncerrado.value || document.visibilityState === 'hidden') {
+    return
+  }
+
+  await atualizarPedido()
+}
+
+function atualizarPedidoAoVoltarParaAba() {
+  if (document.visibilityState === 'visible') {
+    void atualizarPedidoAutomaticamente()
+  }
+}
 
 function voltarPaginaAnterior() {
   const historicoInterno = import.meta.client
@@ -80,8 +131,8 @@ function voltarPaginaAnterior() {
       <ControlePedidoCliente
         v-else
         :pedido="pedido"
-        :carregando="pending"
-        @recarregar="refresh"
+        :carregando="pending || atualizandoPedido"
+        @recarregar="atualizarPedido"
       />
     </section>
 
