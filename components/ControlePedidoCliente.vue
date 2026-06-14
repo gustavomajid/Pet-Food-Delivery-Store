@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle2, ClipboardCopy, MessageCircle, RefreshCcw } from '@lucide/vue'
+import { CheckCircle2, ClipboardCopy, MessageCircle, RefreshCcw, Store } from '@lucide/vue'
 import type { PedidoResumo, StatusPedido } from '~/types/loja'
 
 const props = defineProps<{
@@ -44,6 +44,7 @@ const linkAcompanhamento = computed(() => {
 
 const indiceStatusAtual = computed(() => fluxoStatus.indexOf(props.pedido.status))
 const statusCancelado = computed(() => props.pedido.status === 'cancelado')
+const aguardandoAceite = computed(() => props.pedido.status === 'novo')
 const itensPedido = computed(() => props.pedido.itens ?? [])
 
 const urlWhatsapp = computed(() =>
@@ -152,6 +153,16 @@ async function copiarLink() {
         <strong>Cancelado</strong>
       </li>
     </ol>
+
+    <section v-if="aguardandoAceite" class="pedido-aguardando-aceite" aria-live="polite">
+      <span class="pedido-aguardando-aceite__icone">
+        <Store :size="21" aria-hidden="true" />
+      </span>
+      <span class="pedido-aguardando-aceite__texto">
+        <strong>Aguardando a loja aceitar o pedido</strong>
+        <small>A Fazendinha recebeu seu pedido e esta confirmando os itens.</small>
+      </span>
+    </section>
 
     <section class="controle-pedido__grid">
       <div>

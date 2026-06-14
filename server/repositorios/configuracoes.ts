@@ -6,6 +6,7 @@ const ID_CONFIGURACOES = 1
 
 export type DadosConfiguracoes = {
   modalIdentificacaoAtivo: boolean
+  aceitarPedidosAutomaticamente: boolean
 }
 
 export function repositorioConfiguracoes(banco: Banco) {
@@ -14,7 +15,8 @@ export function repositorioConfiguracoes(banco: Banco) {
       .insert(configuracoesLoja)
       .values({
         id: ID_CONFIGURACOES,
-        modalIdentificacaoAtivo: true
+        modalIdentificacaoAtivo: true,
+        aceitarPedidosAutomaticamente: false
       })
       .onConflictDoNothing()
       .returning()
@@ -55,12 +57,14 @@ export function repositorioConfiguracoes(banco: Banco) {
         .values({
           id: ID_CONFIGURACOES,
           modalIdentificacaoAtivo: dados.modalIdentificacaoAtivo,
+          aceitarPedidosAutomaticamente: dados.aceitarPedidosAutomaticamente,
           atualizadoEm: new Date()
         })
         .onConflictDoUpdate({
           target: configuracoesLoja.id,
           set: {
             modalIdentificacaoAtivo: dados.modalIdentificacaoAtivo,
+            aceitarPedidosAutomaticamente: dados.aceitarPedidosAutomaticamente,
             atualizadoEm: new Date()
           }
         })

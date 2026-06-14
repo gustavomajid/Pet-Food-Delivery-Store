@@ -1,10 +1,21 @@
 <script setup lang="ts">
+import { Printer } from '@lucide/vue'
 import type { PedidoResumo, StatusPedido } from '~/types/loja'
 
 const { formatarCentavos } = useDinheiro()
 
+const CHAVE_PEDIDOS_IMPRESSOS = 'fazendinha-pedidos-impressos-v1'
+const INTERVALO_ATUALIZACAO_PEDIDOS_MS = 15000
+
 const erroAdmin = ref('')
 const statusAtualizando = ref<string | null>(null)
+const pedidosParaImpressao = ref<PedidoResumo[]>([])
+
+let idsPedidosConhecidos = new Set<string>()
+let idsPedidosImpressos = new Set<string>()
+let primeiraCargaPedidos = true
+let monitorarPedidos = false
+let intervaloAtualizacaoPedidos: ReturnType<typeof setInterval> | undefined
 
 const {
   data: dadosPedidos,
@@ -84,13 +95,107 @@ function linhasEndereco(endereco: string) {
   return endereco.split(',').map((parte) => parte.trim()).filter(Boolean)
 }
 
-async function carregarPedidos() {
-  erroAdmin.value = ''
+function carregarIdsPedidosImpressos() {
+  if (!import.meta.client) {
+    return new Set<string>()
+  }
+
+  try {
+    const valor = window.localStorage.getItem(CHAVE_PEDIDOS_IMPRESSOS)
+    const ids = valor ? JSON.parse(valor) : []
+
+    if (!Array.isArray(ids)) {
+      return new Set<string>()
+    }
+
+    return new Set(ids.filter((id): id is string => typeof id === 'string'))
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function salvarIdsPedidosImpressos() {
+  if (!import.meta.client) {
+    return
+  }
+
+  const ids = [...idsPedidosImpressos].slice(-500)
+  window.localStorage.setItem(CHAVE_PEDIDOS_IMPRESSOS, JSON.stringify(ids))
+}
+
+function registrarPedidosImpressos(listaPedidos: PedidoResumo[]) {
+  for (const pedido of listaPedidos) {
+    idsPedidosImpressos.add(pedido.id)
+  }
+
+  salvarIdsPedidosImpressos()
+}
+
+async function imprimirPedidos(listaPedidos: PedidoResumo[]) {
+  if (!import.meta.client || listaPedidos.length === 0) {
+    return
+  }
+
+  pedidosParaImpressao.value = listaPedidos
+  document.body.classList.add('imprimindo-pedido')
+
+  await nextTick()
+  window.print()
+}
+
+function imprimirPedido(pedido: PedidoResumo) {
+  registrarPedidosImpressos([pedido])
+  void imprimirPedidos([pedido])
+}
+
+function encerrarImpressao() {
+  if (!import.meta.client) {
+    return
+  }
+
+  document.body.classList.remove('imprimindo-pedido')
+  pedidosParaImpressao.value = []
+}
+
+function processarPedidosRecebidos() {
+  const listaPedidos = pedidos.value
+
+  if (primeiraCargaPedidos) {
+    idsPedidosConhecidos = new Set(listaPedidos.map((pedido) => pedido.id))
+    primeiraCargaPedidos = false
+    return
+  }
+
+  const pedidosNovosParaImpressao = listaPedidos.filter(
+    (pedido) =>
+      pedido.status === 'em_separacao'
+      && !idsPedidosConhecidos.has(pedido.id)
+      && !idsPedidosImpressos.has(pedido.id)
+  )
+
+  idsPedidosConhecidos = new Set(listaPedidos.map((pedido) => pedido.id))
+
+  if (pedidosNovosParaImpressao.length === 0) {
+    return
+  }
+
+  registrarPedidosImpressos(pedidosNovosParaImpressao)
+  void imprimirPedidos(pedidosNovosParaImpressao)
+}
+
+async function carregarPedidos(opcoes: { silencioso?: boolean } = {}) {
+  if (!opcoes.silencioso) {
+    erroAdmin.value = ''
+  }
 
   try {
     await recarregarPedidos()
+    monitorarPedidos = true
+    processarPedidosRecebidos()
   } catch {
-    erroAdmin.value = 'Nao foi possivel carregar os pedidos.'
+    if (!opcoes.silencioso) {
+      erroAdmin.value = 'Nao foi possivel carregar os pedidos.'
+    }
   }
 }
 
@@ -116,6 +221,26 @@ async function alterarStatusPeloEvento(pedido: PedidoResumo, evento: Event) {
   const alvo = evento.target as HTMLSelectElement
   await alterarStatus(pedido, alvo.value as StatusPedido)
 }
+
+onMounted(() => {
+  idsPedidosImpressos = carregarIdsPedidosImpressos()
+  window.addEventListener('afterprint', encerrarImpressao)
+
+  intervaloAtualizacaoPedidos = setInterval(() => {
+    if (monitorarPedidos) {
+      void carregarPedidos({ silencioso: true })
+    }
+  }, INTERVALO_ATUALIZACAO_PEDIDOS_MS)
+})
+
+onBeforeUnmount(() => {
+  if (intervaloAtualizacaoPedidos) {
+    clearInterval(intervaloAtualizacaoPedidos)
+  }
+
+  window.removeEventListener('afterprint', encerrarImpressao)
+  encerrarImpressao()
+})
 </script>
 
 <template>
@@ -210,6 +335,14 @@ async function alterarStatusPeloEvento(pedido: PedidoResumo, evento: Event) {
                 </option>
               </select>
               <span>{{ statusAtualizando === pedido.id ? 'Atualizando...' : textoStatus(pedido.status) }}</span>
+              <button
+                class="botao-admin botao-admin--secundario botao-admin--compacto"
+                type="button"
+                @click="imprimirPedido(pedido)"
+              >
+                <Printer :size="16" aria-hidden="true" />
+                Imprimir
+              </button>
             </section>
           </div>
 
@@ -218,6 +351,50 @@ async function alterarStatusPeloEvento(pedido: PedidoResumo, evento: Event) {
           </p>
         </article>
       </div>
+    </section>
+
+    <section class="impressao-pedidos" aria-hidden="true">
+      <article v-for="pedido in pedidosParaImpressao" :key="pedido.id" class="cupom-pedido">
+        <header class="cupom-pedido__topo">
+          <strong>Fazendinha</strong>
+          <span>Pedido #{{ pedido.id.slice(0, 8) }}</span>
+          <span>{{ formatarData(pedido.criadoEm) }}</span>
+        </header>
+
+        <section class="cupom-pedido__bloco">
+          <strong>Cliente</strong>
+          <span>{{ pedido.nomeCliente }}</span>
+          <span>{{ pedido.telefoneCliente }}</span>
+          <span>{{ textoPagamento(pedido) }}</span>
+        </section>
+
+        <section class="cupom-pedido__bloco">
+          <strong>{{ textoEntrega(pedido) }}</strong>
+          <span v-for="linha in linhasEndereco(pedido.enderecoEntrega)" :key="linha">
+            {{ linha }}
+          </span>
+        </section>
+
+        <section class="cupom-pedido__bloco">
+          <strong>Itens</strong>
+          <ul>
+            <li v-for="item in pedido.itens" :key="item.id">
+              <span>{{ item.quantidade }}x {{ item.nomeProduto }}</span>
+              <strong>{{ formatarCentavos(item.subtotalCentavos) }}</strong>
+            </li>
+          </ul>
+        </section>
+
+        <section class="cupom-pedido__totais">
+          <span>Subtotal <strong>{{ formatarCentavos(pedido.subtotalCentavos) }}</strong></span>
+          <span>Entrega <strong>{{ formatarCentavos(pedido.taxaEntregaCentavos) }}</strong></span>
+          <span>Total <strong>{{ formatarCentavos(pedido.totalCentavos) }}</strong></span>
+        </section>
+
+        <p v-if="pedido.observacoes" class="cupom-pedido__observacao">
+          Observacoes: {{ pedido.observacoes }}
+        </p>
+      </article>
     </section>
   </AdminArea>
 </template>

@@ -21,6 +21,7 @@ type NovoPedido = {
   taxaEntregaCentavos: number
   descontoCentavos: number
   totalCentavos: number
+  status?: StatusPedido
   observacoes?: string
   itens: ItemNovoPedido[]
 }
@@ -68,6 +69,7 @@ export function repositorioPedidos(banco: Banco) {
             enderecoEntrega: dados.enderecoEntrega,
             tipoEntrega: dados.tipoEntrega,
             formaPagamento: dados.formaPagamento,
+            status: dados.status ?? 'novo',
             subtotalCentavos: dados.subtotalCentavos,
             taxaEntregaCentavos: dados.taxaEntregaCentavos,
             descontoCentavos: dados.descontoCentavos,

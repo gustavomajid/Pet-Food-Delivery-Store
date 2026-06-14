@@ -3,6 +3,7 @@ import { inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { produtos } from '../banco/esquema'
 import type { Banco } from '../banco/tipos'
+import { repositorioConfiguracoes } from '../repositorios/configuracoes'
 import { repositorioPedidos } from '../repositorios/pedidos'
 import type { PedidoResumo, StatusPedido } from '../../types/loja'
 
@@ -37,6 +38,10 @@ export type PedidoEntrada = z.infer<typeof pedidoSchema>
 
 const TAXA_ENTREGA_CENTAVOS = 1200
 const FRETE_GRATIS_A_PARTIR_DE = 25000
+const FUSO_HORARIO_LOJA = 'America/Sao_Paulo'
+const ABERTURA_PADRAO_MINUTOS = 8 * 60
+const FECHAMENTO_SEMANA_MINUTOS = 18 * 60
+const FECHAMENTO_DOMINGO_MINUTOS = 12 * 60
 const STATUS_PEDIDO_ATIVO: StatusPedido[] = [
   'novo',
   'confirmado',
@@ -44,6 +49,24 @@ const STATUS_PEDIDO_ATIVO: StatusPedido[] = [
   'saiu_para_entrega',
   'pronto_para_retirada'
 ]
+
+const formatadorHorarioLoja = new Intl.DateTimeFormat('en-US', {
+  timeZone: FUSO_HORARIO_LOJA,
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+})
+
+const diasSemana = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6
+} as const
 
 type PedidoComItensBanco = Awaited<
   ReturnType<ReturnType<typeof repositorioPedidos>['obterComItens']>
@@ -55,6 +78,31 @@ export function normalizarTelefonePedido(telefone: string) {
 
 export function pedidoEstaAtivo(status: StatusPedido) {
   return STATUS_PEDIDO_ATIVO.includes(status)
+}
+
+export function lojaEstaAberta(data = new Date()) {
+  const partes = Object.fromEntries(
+    formatadorHorarioLoja
+      .formatToParts(data)
+      .map((parte) => [parte.type, parte.value])
+  )
+  const diaSemana = diasSemana[partes.weekday as keyof typeof diasSemana]
+  const hora = Number(partes.hour)
+  const minuto = Number(partes.minute)
+
+  if (diaSemana === undefined || Number.isNaN(hora) || Number.isNaN(minuto)) {
+    return false
+  }
+
+  const minutosDoDia = hora * 60 + minuto
+
+  if (diaSemana === 0) {
+    return minutosDoDia >= ABERTURA_PADRAO_MINUTOS
+      && minutosDoDia < FECHAMENTO_DOMINGO_MINUTOS
+  }
+
+  return minutosDoDia >= ABERTURA_PADRAO_MINUTOS
+    && minutosDoDia < FECHAMENTO_SEMANA_MINUTOS
 }
 
 export function mapearPedidoResumo(pedido: NonNullable<PedidoComItensBanco>): PedidoResumo {
@@ -148,6 +196,10 @@ export async function criarPedido(banco: Banco, entrada: PedidoEntrada) {
       : TAXA_ENTREGA_CENTAVOS
   const descontoCentavos = 0
   const totalCentavos = subtotalCentavos + taxaEntregaCentavos - descontoCentavos
+  const configuracoes = await repositorioConfiguracoes(banco).obter()
+  const statusInicial: StatusPedido = configuracoes?.aceitarPedidosAutomaticamente && lojaEstaAberta()
+    ? 'em_separacao'
+    : 'novo'
 
   const pedido = await repositorio.criar({
     nomeCliente: entrada.nomeCliente,
@@ -159,6 +211,7 @@ export async function criarPedido(banco: Banco, entrada: PedidoEntrada) {
     taxaEntregaCentavos,
     descontoCentavos,
     totalCentavos,
+    status: statusInicial,
     observacoes: entrada.observacoes || undefined,
     itens
   })

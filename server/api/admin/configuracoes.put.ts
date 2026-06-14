@@ -12,7 +12,8 @@ export default defineEventHandler(async (event) => {
 
   return {
     configuracoes: {
-      modalIdentificacaoAtivo: configuracoes?.modalIdentificacaoAtivo ?? true
+      modalIdentificacaoAtivo: configuracoes?.modalIdentificacaoAtivo ?? true,
+      aceitarPedidosAutomaticamente: configuracoes?.aceitarPedidosAutomaticamente ?? false
     }
   }
 })

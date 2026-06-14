@@ -7,6 +7,7 @@ export type Categoria = {
 
 export type ConfiguracoesLoja = {
   modalIdentificacaoAtivo: boolean
+  aceitarPedidosAutomaticamente: boolean
 }
 
 export type Produto = {

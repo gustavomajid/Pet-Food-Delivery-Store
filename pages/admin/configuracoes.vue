@@ -8,14 +8,20 @@ const salvando = ref(false)
 const salvo = ref(false)
 
 const formulario = reactive<ConfiguracoesLoja>({
-  modalIdentificacaoAtivo: true
+  modalIdentificacaoAtivo: true,
+  aceitarPedidosAutomaticamente: false
 })
 
 const {
   data: dadosConfiguracoes,
   refresh: recarregarConfiguracoes
 } = await useFetch<{ configuracoes: ConfiguracoesLoja }>('/api/admin/configuracoes', {
-  default: () => ({ configuracoes: { modalIdentificacaoAtivo: true } }),
+  default: () => ({
+    configuracoes: {
+      modalIdentificacaoAtivo: true,
+      aceitarPedidosAutomaticamente: false
+    }
+  }),
   immediate: false,
   credentials: 'include'
 })
@@ -23,6 +29,8 @@ const {
 function aplicarConfiguracoes() {
   formulario.modalIdentificacaoAtivo =
     dadosConfiguracoes.value?.configuracoes.modalIdentificacaoAtivo ?? true
+  formulario.aceitarPedidosAutomaticamente =
+    dadosConfiguracoes.value?.configuracoes.aceitarPedidosAutomaticamente ?? false
 }
 
 async function carregarConfiguracoes() {
@@ -50,7 +58,8 @@ async function salvarConfiguracoes() {
       method: 'PUT',
       credentials: 'include',
       body: {
-        modalIdentificacaoAtivo: formulario.modalIdentificacaoAtivo
+        modalIdentificacaoAtivo: formulario.modalIdentificacaoAtivo,
+        aceitarPedidosAutomaticamente: formulario.aceitarPedidosAutomaticamente
       }
     })
 
@@ -92,6 +101,15 @@ watch(dadosConfiguracoes, aplicarConfiguracoes, { deep: true })
             <small>Quando ativo, o cliente ve o reconhecimento ao abrir a loja.</small>
           </span>
           <input v-model="formulario.modalIdentificacaoAtivo" type="checkbox">
+        </label>
+
+        <label class="linha-configuracao">
+          <span>
+            <strong>Aceitar pedidos automaticamente</strong>
+            <small>Quando ativo, pedidos dentro do horario da loja entram em separacao e sao impressos no painel.</small>
+            <small>Segunda a sabado: 08:00 as 18:00. Domingo: 08:00 as 12:00.</small>
+          </span>
+          <input v-model="formulario.aceitarPedidosAutomaticamente" type="checkbox">
         </label>
 
         <button class="botao-admin" type="submit" :disabled="salvando">

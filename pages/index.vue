@@ -44,7 +44,14 @@ const { data: dadosCategorias } = await useFetch<{ categorias: Categoria[] }>(
 
 const { data: dadosConfiguracoes } = await useFetch<{ configuracoes: ConfiguracoesLoja }>(
   '/api/configuracoes',
-  { default: () => ({ configuracoes: { modalIdentificacaoAtivo: true } }) }
+  {
+    default: () => ({
+      configuracoes: {
+        modalIdentificacaoAtivo: true,
+        aceitarPedidosAutomaticamente: false
+      }
+    })
+  }
 )
 
 const {

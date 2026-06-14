@@ -1,0 +1,1 @@
+ALTER TABLE "configuracoes_loja" ADD COLUMN "aceitar_pedidos_automaticamente" boolean DEFAULT false NOT NULL;

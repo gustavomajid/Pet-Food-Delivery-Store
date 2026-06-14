@@ -43,6 +43,7 @@ export const categorias = pgTable('categorias', {
 export const configuracoesLoja = pgTable('configuracoes_loja', {
   id: integer('id').primaryKey(),
   modalIdentificacaoAtivo: boolean('modal_identificacao_ativo').notNull().default(true),
+  aceitarPedidosAutomaticamente: boolean('aceitar_pedidos_automaticamente').notNull().default(false),
   atualizadoEm: timestamp('atualizado_em', { withTimezone: true }).notNull().defaultNow()
 })
 
