@@ -2,7 +2,6 @@ import type { ClienteReconhecido, TipoEntrega } from '~/types/loja'
 
 const CHAVE_CLIENTES = 'fazendinha-clientes-v1'
 const CHAVE_CLIENTE_ATUAL = 'fazendinha-cliente-atual-v1'
-const CHAVE_MODAL_FECHADO = 'fazendinha-modal-cliente-fechado-v1'
 
 type DadosCliente = {
   telefoneCliente: string
@@ -11,6 +10,10 @@ type DadosCliente = {
   enderecoEntrega?: string
   tipoEntrega?: TipoEntrega
   atualizadoEm?: string
+}
+
+type OpcoesBuscaCliente = {
+  atualizarRemoto?: boolean
 }
 
 export function normalizarTelefone(telefone: string) {
@@ -105,7 +108,7 @@ export function useClienteReconhecimento() {
     return cliente
   }
 
-  async function buscarClientePorTelefone(telefone: string) {
+  async function buscarClientePorTelefone(telefone: string, opcoes: OpcoesBuscaCliente = {}) {
     const telefoneNormalizado = normalizarTelefone(telefone)
 
     if (telefoneNormalizado.length < 8) {
@@ -118,7 +121,7 @@ export function useClienteReconhecimento() {
       (cliente) => cliente.telefoneNormalizado === telefoneNormalizado
     )
 
-    if (local?.nomeCliente || local?.enderecoEntrega) {
+    if (!opcoes.atualizarRemoto && (local?.nomeCliente || local?.enderecoEntrega)) {
       clienteAtual.value = local
       persistir()
       return local
@@ -149,7 +152,7 @@ export function useClienteReconhecimento() {
   function abrirModalIdentificacao() {
     carregarClientes()
 
-    if (!process.client || window.sessionStorage.getItem(CHAVE_MODAL_FECHADO)) {
+    if (!process.client) {
       return
     }
 
@@ -158,10 +161,6 @@ export function useClienteReconhecimento() {
 
   function fecharModalIdentificacao() {
     modalIdentificacaoAberto.value = false
-
-    if (process.client) {
-      window.sessionStorage.setItem(CHAVE_MODAL_FECHADO, '1')
-    }
   }
 
   return {

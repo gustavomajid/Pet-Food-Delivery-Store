@@ -1,4 +1,4 @@
-import { desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { itensPedido, pedidos, produtos } from '../banco/esquema'
 import type { Banco } from '../banco/tipos'
 import type { FormaPagamento, StatusPedido, TipoEntrega } from '../../types/loja'
@@ -23,6 +23,37 @@ type NovoPedido = {
   totalCentavos: number
   observacoes?: string
   itens: ItemNovoPedido[]
+}
+
+const STATUS_PEDIDO_ATIVO: StatusPedido[] = [
+  'novo',
+  'confirmado',
+  'em_separacao',
+  'saiu_para_entrega',
+  'pronto_para_retirada'
+]
+
+type PedidoBanco = typeof pedidos.$inferSelect
+
+async function anexarItensPedido(banco: Banco, listaPedidos: PedidoBanco[]) {
+  if (listaPedidos.length === 0) {
+    return []
+  }
+
+  const ids = listaPedidos.map((pedido) => pedido.id)
+  const itens = await banco
+    .select()
+    .from(itensPedido)
+    .where(inArray(itensPedido.pedidoId, ids))
+
+  return listaPedidos.map((pedido) => ({
+    ...pedido,
+    itens: itens.filter((item) => item.pedidoId === pedido.id)
+  }))
+}
+
+function filtroTelefoneNormalizado(telefoneNormalizado: string) {
+  return sql`regexp_replace(${pedidos.telefoneCliente}, '[^0-9]', '', 'g') = ${telefoneNormalizado}`
 }
 
 export function repositorioPedidos(banco: Banco) {
@@ -80,20 +111,58 @@ export function repositorioPedidos(banco: Banco) {
         .from(pedidos)
         .orderBy(desc(pedidos.criadoEm))
 
-      if (listaPedidos.length === 0) {
-        return []
+      return anexarItensPedido(banco, listaPedidos)
+    },
+
+    async listarPorTelefoneNormalizado(telefoneNormalizado: string) {
+      const listaPedidos = await banco
+        .select()
+        .from(pedidos)
+        .where(filtroTelefoneNormalizado(telefoneNormalizado))
+        .orderBy(desc(pedidos.criadoEm))
+
+      return anexarItensPedido(banco, listaPedidos)
+    },
+
+    async obterAtivoPorTelefoneNormalizado(telefoneNormalizado: string) {
+      const [pedido] = await banco
+        .select()
+        .from(pedidos)
+        .where(and(
+          filtroTelefoneNormalizado(telefoneNormalizado),
+          inArray(pedidos.status, STATUS_PEDIDO_ATIVO)
+        ))
+        .orderBy(desc(pedidos.criadoEm))
+        .limit(1)
+
+      if (!pedido) {
+        return null
       }
 
-      const ids = listaPedidos.map((pedido) => pedido.id)
+      const [pedidoComItens] = await anexarItensPedido(banco, [pedido])
+
+      return pedidoComItens ?? null
+    },
+
+    async obterComItens(id: string) {
+      const [pedido] = await banco
+        .select()
+        .from(pedidos)
+        .where(eq(pedidos.id, id))
+
+      if (!pedido) {
+        return null
+      }
+
       const itens = await banco
         .select()
         .from(itensPedido)
-        .where(inArray(itensPedido.pedidoId, ids))
+        .where(eq(itensPedido.pedidoId, id))
 
-      return listaPedidos.map((pedido) => ({
+      return {
         ...pedido,
-        itens: itens.filter((item) => item.pedidoId === pedido.id)
-      }))
+        itens
+      }
     },
 
     async atualizarStatus(id: string, status: StatusPedido) {

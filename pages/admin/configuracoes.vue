@@ -3,6 +3,7 @@ import { Save, Settings } from '@lucide/vue'
 import type { ConfiguracoesLoja } from '~/types/loja'
 
 const erroAdmin = ref('')
+const carregandoConfiguracoes = ref(false)
 const salvando = ref(false)
 const salvo = ref(false)
 
@@ -27,12 +28,15 @@ function aplicarConfiguracoes() {
 async function carregarConfiguracoes() {
   erroAdmin.value = ''
   salvo.value = false
+  carregandoConfiguracoes.value = true
 
   try {
     await recarregarConfiguracoes()
     aplicarConfiguracoes()
   } catch {
     erroAdmin.value = 'Nao foi possivel carregar as configuracoes.'
+  } finally {
+    carregandoConfiguracoes.value = false
   }
 }
 
@@ -60,6 +64,8 @@ async function salvarConfiguracoes() {
     salvando.value = false
   }
 }
+
+watch(dadosConfiguracoes, aplicarConfiguracoes, { deep: true })
 </script>
 
 <template>
@@ -71,6 +77,7 @@ async function salvarConfiguracoes() {
   >
     <p v-if="erroAdmin" class="erro-formulario">{{ erroAdmin }}</p>
     <p v-if="salvo" class="aviso-formulario">Configuracoes salvas.</p>
+    <p v-if="carregandoConfiguracoes" class="aviso-formulario">Carregando configuracoes...</p>
 
     <section class="painel-admin">
       <div class="titulo-secao">

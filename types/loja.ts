@@ -25,6 +25,18 @@ export type Produto = {
   ativo: boolean
 }
 
+export type PaginacaoProdutos = {
+  pagina: number
+  porPagina: number
+  total: number
+  totalPaginas: number
+}
+
+export type ProdutosPaginados = {
+  produtos: Produto[]
+  paginacao: PaginacaoProdutos
+}
+
 export type ItemCarrinho = {
   produtoId: number
   nome: string

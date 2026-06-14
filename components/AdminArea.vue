@@ -17,6 +17,12 @@ const emitir = defineEmits<{
   recarregar: []
 }>()
 
+useHead({
+  meta: [
+    { name: 'robots', content: 'noindex,nofollow,noarchive' }
+  ]
+})
+
 const carregandoSessao = ref(true)
 const autenticado = ref(false)
 const senha = ref('')

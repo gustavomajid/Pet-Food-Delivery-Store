@@ -14,6 +14,10 @@ const {
   normalizarTelefone,
   formatarTelefone
 } = useClienteReconhecimento()
+const {
+  carregarHistoricoCliente,
+  obterPedidoAtivoPorTelefone
+} = useHistoricoPedidos()
 
 const telefone = ref('')
 const nome = ref('')
@@ -22,6 +26,8 @@ const erro = ref('')
 const estado = ref<'inicial' | 'encontrado' | 'novo'>('inicial')
 const enderecoSelecionado = ref(false)
 const enderecoRetirada = 'Retirada na loja'
+const ultimoTelefoneConsultado = ref('')
+let temporizadorBuscaCliente: ReturnType<typeof setTimeout> | undefined
 
 const opcoesRecebimento: Array<{
   valor: TipoEntrega
@@ -39,6 +45,9 @@ const clienteTemDados = computed(() =>
 )
 const clienteTemEndereco = computed(() =>
   Boolean(clienteAtual.value?.enderecoEntrega && clienteAtual.value.enderecoEntrega !== enderecoRetirada)
+)
+const pedidoAtivoIdentificado = computed(() =>
+  obterPedidoAtivoPorTelefone(telefone.value || clienteAtual.value?.telefoneCliente)
 )
 
 function preencherFormulario() {
@@ -73,7 +82,7 @@ function selecionarEndereco() {
   })
 }
 
-async function reconhecerCliente() {
+async function reconhecerCliente(forcar = false) {
   erro.value = ''
 
   if (!telefoneValido.value) {
@@ -81,10 +90,20 @@ async function reconhecerCliente() {
     return
   }
 
+  const telefoneNormalizado = normalizarTelefone(telefone.value)
+
+  if (!forcar && telefoneNormalizado === ultimoTelefoneConsultado.value) {
+    return
+  }
+
   carregando.value = true
 
   try {
-    const cliente = await buscarClientePorTelefone(telefone.value)
+    const cliente = await buscarClientePorTelefone(telefone.value, {
+      atualizarRemoto: true
+    })
+    await carregarHistoricoCliente(telefone.value)
+    ultimoTelefoneConsultado.value = telefoneNormalizado
 
     if (cliente) {
       preencherFormulario()
@@ -101,6 +120,24 @@ async function reconhecerCliente() {
   } finally {
     carregando.value = false
   }
+}
+
+function aoDigitarTelefone() {
+  erro.value = ''
+  estado.value = 'inicial'
+
+  if (temporizadorBuscaCliente) {
+    clearTimeout(temporizadorBuscaCliente)
+  }
+
+  if (!telefoneValido.value) {
+    ultimoTelefoneConsultado.value = ''
+    return
+  }
+
+  temporizadorBuscaCliente = setTimeout(() => {
+    void reconhecerCliente()
+  }, 650)
 }
 
 function selecionarRecebimento(valor: TipoEntrega) {
@@ -139,9 +176,25 @@ function continuar() {
 onMounted(() => {
   carregarClientes()
   preencherFormulario()
+
+  if (clienteAtual.value?.telefoneCliente) {
+    void carregarHistoricoCliente(clienteAtual.value.telefoneCliente)
+  }
 })
 
-watch(clienteAtual, preencherFormulario)
+watch(clienteAtual, (cliente) => {
+  preencherFormulario()
+
+  if (cliente?.telefoneCliente) {
+    void carregarHistoricoCliente(cliente.telefoneCliente)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (temporizadorBuscaCliente) {
+    clearTimeout(temporizadorBuscaCliente)
+  }
+})
 </script>
 
 <template>
@@ -159,7 +212,7 @@ watch(clienteAtual, preencherFormulario)
           </button>
         </header>
 
-        <form class="formulario-identificacao" @submit.prevent="reconhecerCliente">
+        <form class="formulario-identificacao" @submit.prevent="reconhecerCliente(true)">
           <label>
             WhatsApp
             <span class="campo-com-icone">
@@ -170,6 +223,8 @@ watch(clienteAtual, preencherFormulario)
                 inputmode="tel"
                 autocomplete="tel"
                 placeholder="(17) 99999-9999"
+                @blur="reconhecerCliente(true)"
+                @input="aoDigitarTelefone"
               >
             </span>
           </label>
@@ -187,6 +242,12 @@ watch(clienteAtual, preencherFormulario)
         </form>
 
         <p v-if="erro" class="erro-formulario">{{ erro }}</p>
+        <p v-else-if="pedidoAtivoIdentificado" class="aviso-formulario">
+          Voce ja tem um pedido em andamento.
+          <NuxtLink :to="`/pedido/${pedidoAtivoIdentificado.id}`" @click="fecharModalIdentificacao">
+            Acompanhar pedido
+          </NuxtLink>
+        </p>
         <p v-else-if="estado === 'novo'" class="aviso-formulario">Telefone registrado para este pedido.</p>
 
         <section v-if="clienteAtual && clienteTemEndereco" class="bloco-identificacao">

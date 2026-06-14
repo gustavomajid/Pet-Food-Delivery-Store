@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, inArray, or, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { categorias, produtos } from '../banco/esquema'
 import type { Banco } from '../banco/tipos'
 
@@ -7,6 +7,8 @@ export type FiltrosProduto = {
   categoriaId?: number
   marca?: string
   somenteAtivos?: boolean
+  pagina?: number
+  porPagina?: number
 }
 
 export type DadosProduto = {
@@ -21,6 +23,46 @@ export type DadosProduto = {
   destaque: boolean
   promocao: boolean
   ativo: boolean
+}
+
+const ACENTOS = 'áàâãäéèêëíìîïóòôõöúùûüç'
+const SEM_ACENTOS = 'aaaaaeeeeiiiiooooouuuuc'
+const LIMITE_TERMOS_BUSCA = 8
+
+function normalizarTexto(valor: string) {
+  return valor
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+}
+
+function quebrarTermos(valor?: string) {
+  if (!valor) {
+    return []
+  }
+
+  return normalizarTexto(valor).split(/\s+/).filter(Boolean).slice(0, LIMITE_TERMOS_BUSCA)
+}
+
+function escaparLike(valor: string) {
+  return valor.replace(/[\\%_]/g, '\\$&')
+}
+
+function escaparRegex(valor: string) {
+  return valor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function contemTermo(coluna: SQLWrapper, termo: string) {
+  const colunaNormalizada = sql`translate(lower(${coluna}), ${ACENTOS}, ${SEM_ACENTOS})`
+
+  if (termo.length < 3) {
+    const padrao = `%${escaparLike(termo)}%`
+
+    return sql`${colunaNormalizada} like ${padrao} escape '\\'`
+  }
+
+  return sql`${colunaNormalizada} ~ ${`(^|[^a-z0-9])${escaparRegex(termo)}`}`
 }
 
 export function repositorioProdutos(banco: Banco) {
@@ -40,35 +82,41 @@ export function repositorioProdutos(banco: Banco) {
     ativo: produtos.ativo
   }
 
+  function montarCondicoes(filtros: FiltrosProduto = {}) {
+    const condicoes: SQL[] = []
+
+    if (filtros.somenteAtivos !== false) {
+      condicoes.push(eq(produtos.ativo, true))
+    }
+
+    if (filtros.categoriaId) {
+      condicoes.push(eq(produtos.categoriaId, filtros.categoriaId))
+    }
+
+    for (const termo of quebrarTermos(filtros.marca)) {
+      condicoes.push(contemTermo(produtos.marca, termo))
+    }
+
+    for (const termo of quebrarTermos(filtros.busca)) {
+      const condicaoBusca = or(
+        contemTermo(produtos.nome, termo),
+        contemTermo(produtos.descricao, termo),
+        contemTermo(produtos.marca, termo),
+        contemTermo(produtos.peso, termo),
+        contemTermo(categorias.nome, termo)
+      )
+
+      if (condicaoBusca) {
+        condicoes.push(condicaoBusca)
+      }
+    }
+
+    return condicoes
+  }
+
   return {
     async listar(filtros: FiltrosProduto = {}) {
-      const condicoes: SQL[] = []
-
-      if (filtros.somenteAtivos !== false) {
-        condicoes.push(eq(produtos.ativo, true))
-      }
-
-      if (filtros.categoriaId) {
-        condicoes.push(eq(produtos.categoriaId, filtros.categoriaId))
-      }
-
-      if (filtros.marca) {
-        condicoes.push(ilike(produtos.marca, `%${filtros.marca}%`))
-      }
-
-      if (filtros.busca) {
-        const busca = `%${filtros.busca}%`
-        const condicaoBusca = or(
-          ilike(produtos.nome, busca),
-          ilike(produtos.descricao, busca),
-          ilike(produtos.marca, busca)
-        )
-
-        if (condicaoBusca) {
-          condicoes.push(condicaoBusca)
-        }
-      }
-
+      const condicoes = montarCondicoes(filtros)
       let consulta = banco
         .select(selecao)
         .from(produtos)
@@ -80,6 +128,59 @@ export function repositorioProdutos(banco: Banco) {
       }
 
       return consulta.orderBy(asc(categorias.nome), asc(produtos.nome))
+    },
+
+    async listarPaginado(filtros: FiltrosProduto = {}) {
+      const condicoes = montarCondicoes(filtros)
+      const paginaRecebida =
+        filtros.pagina && Number.isFinite(filtros.pagina) ? Math.floor(filtros.pagina) : 1
+      const porPaginaRecebida =
+        filtros.porPagina && Number.isFinite(filtros.porPagina)
+          ? Math.floor(filtros.porPagina)
+          : 12
+      const porPagina = Math.min(Math.max(porPaginaRecebida, 1), 48)
+
+      let consultaTotal = banco
+        .select({ total: count() })
+        .from(produtos)
+        .innerJoin(categorias, eq(produtos.categoriaId, categorias.id))
+        .$dynamic()
+
+      if (condicoes.length > 0) {
+        consultaTotal = consultaTotal.where(and(...condicoes))
+      }
+
+      const [resultadoTotal] = await consultaTotal
+      const total = Number(resultadoTotal?.total ?? 0)
+      const totalPaginas = Math.ceil(total / porPagina)
+      const pagina =
+        totalPaginas > 0 ? Math.min(Math.max(paginaRecebida, 1), totalPaginas) : 1
+      const deslocamento = (pagina - 1) * porPagina
+
+      let consultaProdutos = banco
+        .select(selecao)
+        .from(produtos)
+        .innerJoin(categorias, eq(produtos.categoriaId, categorias.id))
+        .$dynamic()
+
+      if (condicoes.length > 0) {
+        consultaProdutos = consultaProdutos.where(and(...condicoes))
+      }
+
+      const produtosPaginados = await consultaProdutos
+        .orderBy(asc(categorias.nome), asc(produtos.nome))
+        .limit(porPagina)
+        .offset(deslocamento)
+
+      return {
+        produtos: produtosPaginados,
+        paginacao: {
+          pagina,
+          porPagina,
+          total,
+          totalPaginas
+        }
+      }
     },
 
     async buscarPorIds(ids: number[]) {

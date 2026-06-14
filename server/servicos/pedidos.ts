@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { produtos } from '../banco/esquema'
 import type { Banco } from '../banco/tipos'
 import { repositorioPedidos } from '../repositorios/pedidos'
+import type { PedidoResumo, StatusPedido } from '../../types/loja'
 
 export const pedidoSchema = z.object({
   nomeCliente: z.string().trim().min(2).max(160),
@@ -36,8 +37,76 @@ export type PedidoEntrada = z.infer<typeof pedidoSchema>
 
 const TAXA_ENTREGA_CENTAVOS = 1200
 const FRETE_GRATIS_A_PARTIR_DE = 25000
+const STATUS_PEDIDO_ATIVO: StatusPedido[] = [
+  'novo',
+  'confirmado',
+  'em_separacao',
+  'saiu_para_entrega',
+  'pronto_para_retirada'
+]
+
+type PedidoComItensBanco = Awaited<
+  ReturnType<ReturnType<typeof repositorioPedidos>['obterComItens']>
+>
+
+export function normalizarTelefonePedido(telefone: string) {
+  return telefone.replace(/\D/g, '').slice(0, 14)
+}
+
+export function pedidoEstaAtivo(status: StatusPedido) {
+  return STATUS_PEDIDO_ATIVO.includes(status)
+}
+
+export function mapearPedidoResumo(pedido: NonNullable<PedidoComItensBanco>): PedidoResumo {
+  return {
+    id: pedido.id,
+    nomeCliente: pedido.nomeCliente,
+    telefoneCliente: pedido.telefoneCliente,
+    enderecoEntrega: pedido.enderecoEntrega,
+    tipoEntrega: pedido.tipoEntrega,
+    formaPagamento: pedido.formaPagamento,
+    status: pedido.status,
+    subtotalCentavos: pedido.subtotalCentavos,
+    taxaEntregaCentavos: pedido.taxaEntregaCentavos,
+    descontoCentavos: pedido.descontoCentavos,
+    totalCentavos: pedido.totalCentavos,
+    observacoes: pedido.observacoes,
+    criadoEm: pedido.criadoEm.toISOString(),
+    itens: pedido.itens?.map((item) => ({
+      id: item.id,
+      pedidoId: item.pedidoId,
+      produtoId: item.produtoId,
+      nomeProduto: item.nomeProduto,
+      quantidade: item.quantidade,
+      precoUnitarioCentavos: item.precoUnitarioCentavos,
+      subtotalCentavos: item.subtotalCentavos
+    })) ?? []
+  }
+}
 
 export async function criarPedido(banco: Banco, entrada: PedidoEntrada) {
+  const repositorio = repositorioPedidos(banco)
+  const telefoneNormalizado = normalizarTelefonePedido(entrada.telefoneCliente)
+
+  if (telefoneNormalizado.length < 8) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Informe um telefone valido.'
+    })
+  }
+
+  const pedidoAtivo = await repositorio.obterAtivoPorTelefoneNormalizado(telefoneNormalizado)
+
+  if (pedidoAtivo) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Voce ja tem um pedido em andamento.',
+      data: {
+        pedido: mapearPedidoResumo(pedidoAtivo)
+      }
+    })
+  }
+
   const ids = [...new Set(entrada.itens.map((item) => item.produtoId))]
   const produtosEncontrados = await banco
     .select()
@@ -80,7 +149,7 @@ export async function criarPedido(banco: Banco, entrada: PedidoEntrada) {
   const descontoCentavos = 0
   const totalCentavos = subtotalCentavos + taxaEntregaCentavos - descontoCentavos
 
-  const pedido = await repositorioPedidos(banco).criar({
+  const pedido = await repositorio.criar({
     nomeCliente: entrada.nomeCliente,
     telefoneCliente: entrada.telefoneCliente,
     enderecoEntrega: entrada.enderecoEntrega,
@@ -94,19 +163,31 @@ export async function criarPedido(banco: Banco, entrada: PedidoEntrada) {
     itens
   })
 
-  return {
-    id: pedido.id,
-    nomeCliente: pedido.nomeCliente,
-    telefoneCliente: pedido.telefoneCliente,
-    enderecoEntrega: pedido.enderecoEntrega,
-    tipoEntrega: pedido.tipoEntrega,
-    formaPagamento: pedido.formaPagamento,
-    status: pedido.status,
-    subtotalCentavos: pedido.subtotalCentavos,
-    taxaEntregaCentavos: pedido.taxaEntregaCentavos,
-    descontoCentavos: pedido.descontoCentavos,
-    totalCentavos: pedido.totalCentavos,
-    observacoes: pedido.observacoes,
-    criadoEm: pedido.criadoEm.toISOString()
+  const itensResumo = itens.map((item, indice) => ({
+    id: indice + 1,
+    pedidoId: pedido.id,
+    produtoId: item.produtoId,
+    nomeProduto: item.nomeProduto,
+    quantidade: item.quantidade,
+    precoUnitarioCentavos: item.precoUnitarioCentavos,
+    subtotalCentavos: item.subtotalCentavos
+  }))
+
+  return mapearPedidoResumo({
+    ...pedido,
+    itens: itensResumo
+  })
+}
+
+export async function listarHistoricoPedidosCliente(banco: Banco, telefone: string) {
+  const telefoneNormalizado = normalizarTelefonePedido(telefone)
+
+  if (telefoneNormalizado.length < 8) {
+    return []
   }
+
+  const pedidos = await repositorioPedidos(banco)
+    .listarPorTelefoneNormalizado(telefoneNormalizado)
+
+  return pedidos.map(mapearPedidoResumo)
 }

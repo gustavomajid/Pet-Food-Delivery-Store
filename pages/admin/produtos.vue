@@ -20,7 +20,9 @@ type ProdutoFormulario = {
 const { formatarCentavos, reaisParaCentavos, centavosParaReais } = useDinheiro()
 
 const erroAdmin = ref('')
+const erroUploadImagem = ref('')
 const salvandoProduto = ref(false)
+const enviandoImagem = ref(false)
 
 const produtoVazio = (): ProdutoFormulario => ({
   id: null,
@@ -74,11 +76,13 @@ async function carregarProdutos() {
 }
 
 function novoProduto() {
+  erroUploadImagem.value = ''
   Object.assign(formulario, produtoVazio())
   formulario.categoriaId = categorias.value[0]?.id ?? 0
 }
 
 function editarProduto(produto: Produto) {
+  erroUploadImagem.value = ''
   Object.assign(formulario, {
     id: produto.id,
     nome: produto.nome,
@@ -93,6 +97,36 @@ function editarProduto(produto: Produto) {
     promocao: produto.promocao,
     ativo: produto.ativo
   })
+}
+
+async function enviarImagemProduto(event: Event) {
+  const input = event.target as HTMLInputElement
+  const arquivo = input.files?.[0]
+
+  if (!arquivo) {
+    return
+  }
+
+  erroUploadImagem.value = ''
+  enviandoImagem.value = true
+
+  try {
+    const dados = new FormData()
+    dados.append('imagem', arquivo)
+
+    const resposta = await $fetch<{ url: string }>('/api/admin/uploads/produtos', {
+      method: 'POST',
+      credentials: 'include',
+      body: dados
+    })
+
+    formulario.imagemUrl = resposta.url
+  } catch {
+    erroUploadImagem.value = 'Nao foi possivel subir a imagem.'
+  } finally {
+    enviandoImagem.value = false
+    input.value = ''
+  }
 }
 
 async function salvarProduto() {
@@ -201,10 +235,35 @@ async function inativarProduto(produto: Produto) {
           <input v-model="formulario.peso" placeholder="15kg" required>
         </label>
 
-        <label class="campo-largo">
-          Imagem URL
-          <input v-model="formulario.imagemUrl" type="url" required>
-        </label>
+        <div class="campo-largo campo-upload-produto">
+          <label>
+            Imagem do produto
+            <input
+              v-model="formulario.imagemUrl"
+              type="text"
+              placeholder="/uploads/produtos/imagem.jpg ou https://..."
+              required
+            >
+          </label>
+
+          <label class="campo-arquivo-produto">
+            Subir imagem do computador
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              :disabled="enviandoImagem"
+              @change="enviarImagemProduto"
+            >
+          </label>
+
+          <span v-if="enviandoImagem" class="status-upload-produto">Enviando imagem...</span>
+          <p v-if="erroUploadImagem" class="erro-formulario">{{ erroUploadImagem }}</p>
+
+          <div v-if="formulario.imagemUrl" class="preview-produto-upload">
+            <img :src="formulario.imagemUrl" alt="">
+            <span>{{ formulario.imagemUrl }}</span>
+          </div>
+        </div>
 
         <label class="campo-largo">
           Descricao
