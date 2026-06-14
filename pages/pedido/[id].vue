@@ -19,9 +19,11 @@ const {
 const pedido = computed(() => data.value?.pedido ?? null)
 const { registrarPedido } = useHistoricoPedidos()
 const { quantidadeItens, aberto } = useCarrinho()
-const atualizandoPedido = ref(false)
+const atualizacaoEmAndamento = ref(false)
+const atualizacaoManualEmAndamento = ref(false)
 let intervaloAtualizacaoPedido: ReturnType<typeof setInterval> | undefined
 
+const carregandoPedidoInicial = computed(() => pending.value && !pedido.value)
 const pedidoEncerrado = computed(() =>
   pedido.value ? ['finalizado', 'cancelado'].includes(pedido.value.status) : false
 )
@@ -48,17 +50,19 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', atualizarPedidoAoVoltarParaAba)
 })
 
-async function atualizarPedido() {
-  if (atualizandoPedido.value || pending.value) {
+async function atualizarPedido(mostrarFeedback = true) {
+  if (atualizacaoEmAndamento.value || pending.value) {
     return
   }
 
-  atualizandoPedido.value = true
+  atualizacaoEmAndamento.value = true
+  atualizacaoManualEmAndamento.value = mostrarFeedback
 
   try {
     await refresh()
   } finally {
-    atualizandoPedido.value = false
+    atualizacaoEmAndamento.value = false
+    atualizacaoManualEmAndamento.value = false
   }
 }
 
@@ -67,7 +71,7 @@ async function atualizarPedidoAutomaticamente() {
     return
   }
 
-  await atualizarPedido()
+  await atualizarPedido(false)
 }
 
 function atualizarPedidoAoVoltarParaAba() {
@@ -117,7 +121,7 @@ function voltarPaginaAnterior() {
     </header>
 
     <section class="catalogo catalogo-pedido">
-      <div v-if="pending" class="painel-estado">
+      <div v-if="carregandoPedidoInicial" class="painel-estado">
         <strong>Carregando pedido</strong>
         <span>Estamos buscando as informacoes mais recentes.</span>
       </div>
@@ -131,7 +135,7 @@ function voltarPaginaAnterior() {
       <ControlePedidoCliente
         v-else
         :pedido="pedido"
-        :carregando="pending || atualizandoPedido"
+        :carregando="atualizacaoManualEmAndamento"
         @recarregar="atualizarPedido"
       />
     </section>
