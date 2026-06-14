@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle2, ClipboardList, Clock, Package, Settings, ShoppingBag, Tags } from '@lucide/vue'
+import { CheckCircle2, ClipboardList, Clock, Package, Settings, ShoppingBag, Tags, Truck } from '@lucide/vue'
 import type { PedidoResumo, StatusPedido } from '~/types/loja'
 
 const { formatarCentavos } = useDinheiro()
@@ -52,6 +52,12 @@ const atalhosAdmin = [
     titulo: 'Pedidos',
     texto: 'Ver pedidos recebidos, itens e status.',
     icone: ClipboardList
+  },
+  {
+    caminho: '/entregador',
+    titulo: 'Entregador',
+    texto: 'Montar rotas, selecionar pedidos e definir estoque de baixa.',
+    icone: Truck
   },
   {
     caminho: '/admin/produtos',

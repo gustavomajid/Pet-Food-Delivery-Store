@@ -3,9 +3,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Home,
   Search,
   ShoppingBasket,
-  Truck,
+  UserRound,
   X,
 } from '@lucide/vue'
 import type { Categoria, ConfiguracoesLoja, Produto, ProdutosPaginados } from '~/types/loja'
@@ -76,6 +77,7 @@ const destaques = computed(() => produtos.value.filter((produto) => produto.dest
 const filtrosAtivos = computed(() =>
   Boolean(busca.value.trim() || marca.value.trim() || categoriaAtual.value)
 )
+
 const totalProdutosTexto = computed(() => {
   if (paginacao.value.total === 1) {
     return '1 produto'
@@ -83,6 +85,7 @@ const totalProdutosTexto = computed(() => {
 
   return `${paginacao.value.total} produtos`
 })
+
 const intervaloProdutosTexto = computed(() => {
   if (paginacao.value.total === 0) {
     return ''
@@ -111,8 +114,7 @@ const paginasVisiveis = computed(() => {
   return Array.from({ length: fim - inicioAjustado + 1 }, (_, indice) => inicioAjustado + indice)
 })
 
-const { quantidadeItens, subtotalCentavos, adicionarProduto, aberto } = useCarrinho()
-const { formatarCentavos } = useDinheiro()
+const { quantidadeItens, adicionarProduto, aberto } = useCarrinho()
 const { abrirModalIdentificacao, clienteAtual } = useClienteReconhecimento()
 const {
   ultimoPedidoId,
@@ -122,6 +124,15 @@ const {
   recarregarPedido
 } = useHistoricoPedidos()
 const modalIdentificacaoSolicitado = ref(false)
+const pedidosCliente = computed(() => obterHistoricoPorTelefone(clienteAtual.value?.telefoneCliente))
+const quantidadePedidosCliente = computed(() => pedidosCliente.value.length)
+const pedidosBadgeTexto = computed(() => {
+  if (quantidadePedidosCliente.value > 9) {
+    return '9+'
+  }
+
+  return `${quantidadePedidosCliente.value}`
+})
 const pedidoAcompanhamentoId = computed(() => {
   const telefoneCliente = clienteAtual.value?.telefoneCliente
 
@@ -129,7 +140,7 @@ const pedidoAcompanhamentoId = computed(() => {
     return ultimoPedidoId.value
   }
 
-  return obterHistoricoPorTelefone(telefoneCliente)[0]?.id || ''
+  return pedidosCliente.value[0]?.id || ''
 })
 
 function aplicarBuscaTexto() {
@@ -232,6 +243,7 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
         >
           <ClipboardList :size="19" aria-hidden="true" />
         </NuxtLink>
+
         <button class="botao-carrinho" type="button" aria-label="Abrir carrinho" @click="aberto = true">
           <ShoppingBasket :size="20" aria-hidden="true" />
           <span>{{ quantidadeItens }}</span>
@@ -239,15 +251,32 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
       </nav>
     </header>
 
+    <div class="barra-categorias">
+      <nav class="abas-categorias" aria-label="Categorias">
+        <button
+          type="button"
+          :class="{ ativo: categoriaAtual === 0 }"
+          @click="selecionarCategoria(0)"
+        >
+          Todos
+        </button>
+        <button
+          v-for="categoria in categorias"
+          :key="categoria.id"
+          type="button"
+          :class="{ ativo: categoriaAtual === categoria.id }"
+          @click="selecionarCategoria(categoria.id)"
+        >
+          {{ categoria.nome }}
+        </button>
+      </nav>
+    </div>
+
     <section class="catalogo">
       <div class="chamada">
         <div>
           <p>Pedido online</p>
         </div>
-        <span class="selo-entrega">
-          <Truck :size="17" aria-hidden="true" />
-          Entrega local
-        </span>
       </div>
 
       <div class="busca-filtros">
@@ -265,25 +294,6 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
           <X :size="17" aria-hidden="true" />
           Limpar
         </button>
-
-        <nav class="abas-categorias" aria-label="Categorias">
-          <button
-            type="button"
-            :class="{ ativo: categoriaAtual === 0 }"
-            @click="selecionarCategoria(0)"
-          >
-            Todos
-          </button>
-          <button
-            v-for="categoria in categorias"
-            :key="categoria.id"
-            type="button"
-            :class="{ ativo: categoriaAtual === categoria.id }"
-            @click="selecionarCategoria(categoria.id)"
-          >
-            {{ categoria.nome }}
-          </button>
-        </nav>
       </div>
 
       <section v-if="destaques.length > 0" class="faixa-destaques">
@@ -303,7 +313,7 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
 
       <div class="titulo-secao">
         <h2>Catálogo</h2>
-        <span>{{ totalProdutosTexto }}</span>
+        <span>{{ intervaloProdutosTexto || totalProdutosTexto }}</span>
       </div>
 
       <div v-if="error" class="painel-estado">
@@ -392,15 +402,37 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
       </nav>
     </footer>
 
-    <button
-      v-if="quantidadeItens > 0"
-      class="barra-carrinho"
-      type="button"
-      @click="aberto = true"
-    >
-      <span>{{ quantidadeItens }} itens</span>
-      <strong>{{ formatarCentavos(subtotalCentavos) }}</strong>
-    </button>
+    <nav class="rodape-app-fixo" aria-label="Navegação principal">
+      <NuxtLink class="botao-nav-inferior ativo" to="/" aria-current="page">
+        <Home :size="24" aria-hidden="true" />
+        <span>Início</span>
+      </NuxtLink>
+
+      <button class="botao-nav-inferior" type="button" @click="aberto = true">
+        <ShoppingBasket :size="24" aria-hidden="true" />
+        <span v-if="quantidadeItens > 0" class="contador-nav">{{ quantidadeItens }}</span>
+        <span>Carrinho</span>
+      </button>
+
+      <NuxtLink
+        v-if="pedidoAcompanhamentoId"
+        class="botao-nav-inferior"
+        :to="`/pedido/${pedidoAcompanhamentoId}`"
+      >
+        <ClipboardList :size="24" aria-hidden="true" />
+        <span v-if="quantidadePedidosCliente > 0" class="contador-nav">{{ pedidosBadgeTexto }}</span>
+        <span>Pedidos</span>
+      </NuxtLink>
+      <button v-else class="botao-nav-inferior" type="button" disabled>
+        <ClipboardList :size="24" aria-hidden="true" />
+        <span>Pedidos</span>
+      </button>
+
+      <button class="botao-nav-inferior" type="button" @click="abrirModalIdentificacao">
+        <UserRound :size="24" aria-hidden="true" />
+        <span>Perfil</span>
+      </button>
+    </nav>
 
     <PainelCarrinho />
     <ModalIdentificacaoCliente />

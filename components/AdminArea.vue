@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LogOut, RefreshCcw } from '@lucide/vue'
+import { ClipboardList, Home, LogOut, Package, RefreshCcw, Truck } from '@lucide/vue'
 
 withDefaults(
   defineProps<{
@@ -16,6 +16,8 @@ const emitir = defineEmits<{
   autenticado: []
   recarregar: []
 }>()
+
+const route = useRoute()
 
 useHead({
   meta: [
@@ -62,10 +64,60 @@ async function sair() {
   await $fetch('/api/admin/sair', { method: 'POST', credentials: 'include' })
   await navigateTo('/admin')
 }
+
+function linkRodapeAtivo(caminho: string) {
+  if (caminho === '/admin') {
+    return route.path === '/admin'
+  }
+
+  return route.path.startsWith(caminho)
+}
 </script>
 
 <template>
   <main class="admin">
+    <header class="topo admin-topo">
+      <div class="marca-loja">
+        <span class="marca-loja__icone">
+          <img src="/img/logo.jpeg" alt="" aria-hidden="true">
+        </span>
+        <div>
+          <strong>{{ titulo }}</strong>
+          <span>{{ carregandoSessao ? 'Verificando acesso...' : autenticado ? subtitulo : 'Acesso restrito' }}</span>
+        </div>
+      </div>
+
+      <nav class="acoes-topo" aria-label="Acoes do painel">
+        <template v-if="autenticado">
+          <a class="botao-admin botao-admin--secundario" href="/admin">Painel</a>
+          <a class="botao-admin botao-admin--secundario" href="/admin/configuracoes">Configuracoes</a>
+          <a class="botao-admin botao-admin--secundario" href="/admin/categorias">Categorias</a>
+          <a class="botao-admin botao-admin--secundario" href="/admin/produtos">Produtos</a>
+          <a class="botao-admin botao-admin--secundario" href="/admin/pedidos">Pedidos</a>
+          <a class="botao-admin botao-admin--secundario" href="/entregador">Entregador</a>
+        </template>
+        <a class="botao-admin botao-admin--secundario" href="/">Loja</a>
+        <button
+          v-if="autenticado && mostrarRecarregar"
+          class="botao-icone"
+          type="button"
+          aria-label="Recarregar"
+          @click="emitir('recarregar')"
+        >
+          <RefreshCcw :size="18" aria-hidden="true" />
+        </button>
+        <button
+          v-if="autenticado"
+          class="botao-icone"
+          type="button"
+          aria-label="Sair"
+          @click="sair"
+        >
+          <LogOut :size="18" aria-hidden="true" />
+        </button>
+      </nav>
+    </header>
+
     <section v-if="carregandoSessao" class="painel-admin login-admin">
       <div class="marca-loja marca-loja--central">
         <span class="marca-loja__icone">
@@ -99,43 +151,50 @@ async function sair() {
       </form>
     </section>
 
-    <template v-else>
-      <header class="topo admin-topo">
-        <div class="marca-loja">
-          <span class="marca-loja__icone">
-            <img src="/img/logo.jpeg" alt="" aria-hidden="true">
-          </span>
-          <div>
-            <strong>{{ titulo }}</strong>
-            <span>{{ subtitulo }}</span>
-          </div>
-        </div>
+    <div v-else-if="autenticado" class="admin-corpo">
+      <slot />
+    </div>
 
-        <nav class="acoes-topo" aria-label="Acoes do painel">
-          <a class="botao-admin botao-admin--secundario" href="/admin">Painel</a>
-          <a class="botao-admin botao-admin--secundario" href="/admin/configuracoes">Configuracoes</a>
-          <a class="botao-admin botao-admin--secundario" href="/admin/categorias">Categorias</a>
-          <a class="botao-admin botao-admin--secundario" href="/admin/produtos">Produtos</a>
-          <a class="botao-admin botao-admin--secundario" href="/admin/pedidos">Pedidos</a>
-          <a class="botao-admin botao-admin--secundario" href="/">Loja</a>
-          <button
-            v-if="mostrarRecarregar"
-            class="botao-icone"
-            type="button"
-            aria-label="Recarregar"
-            @click="emitir('recarregar')"
-          >
-            <RefreshCcw :size="18" aria-hidden="true" />
-          </button>
-          <button class="botao-icone" type="button" aria-label="Sair" @click="sair">
-            <LogOut :size="18" aria-hidden="true" />
-          </button>
-        </nav>
-      </header>
+    <nav class="rodape-app-fixo rodape-admin-fixo" aria-label="Navegacao fixa do painel">
+      <NuxtLink
+        class="botao-nav-inferior"
+        :class="{ ativo: linkRodapeAtivo('/admin') }"
+        to="/admin"
+        :aria-current="linkRodapeAtivo('/admin') ? 'page' : undefined"
+      >
+        <Home :size="24" aria-hidden="true" />
+        <span>Painel</span>
+      </NuxtLink>
 
-      <div class="admin-corpo">
-        <slot />
-      </div>
-    </template>
+      <NuxtLink
+        class="botao-nav-inferior"
+        :class="{ ativo: linkRodapeAtivo('/admin/pedidos') }"
+        to="/admin/pedidos"
+        :aria-current="linkRodapeAtivo('/admin/pedidos') ? 'page' : undefined"
+      >
+        <ClipboardList :size="24" aria-hidden="true" />
+        <span>Pedidos</span>
+      </NuxtLink>
+
+      <NuxtLink
+        class="botao-nav-inferior"
+        :class="{ ativo: linkRodapeAtivo('/admin/produtos') }"
+        to="/admin/produtos"
+        :aria-current="linkRodapeAtivo('/admin/produtos') ? 'page' : undefined"
+      >
+        <Package :size="24" aria-hidden="true" />
+        <span>Produtos</span>
+      </NuxtLink>
+
+      <NuxtLink
+        class="botao-nav-inferior"
+        :class="{ ativo: linkRodapeAtivo('/entregador') }"
+        to="/entregador"
+        :aria-current="linkRodapeAtivo('/entregador') ? 'page' : undefined"
+      >
+        <Truck :size="24" aria-hidden="true" />
+        <span>Entregador</span>
+      </NuxtLink>
+    </nav>
   </main>
 </template>
