@@ -3,10 +3,14 @@ import { configuracoesLoja } from '../banco/esquema'
 import type { Banco } from '../banco/tipos'
 
 const ID_CONFIGURACOES = 1
+export const MODO_FUNCIONAMENTO_PADRAO = 'automatico'
+
+export type ModoFuncionamentoOnline = 'automatico' | 'aberta' | 'fechada'
 
 export type DadosConfiguracoes = {
   modalIdentificacaoAtivo: boolean
   aceitarPedidosAutomaticamente: boolean
+  modoFuncionamentoOnline: ModoFuncionamentoOnline
 }
 
 export function repositorioConfiguracoes(banco: Banco) {
@@ -16,7 +20,8 @@ export function repositorioConfiguracoes(banco: Banco) {
       .values({
         id: ID_CONFIGURACOES,
         modalIdentificacaoAtivo: true,
-        aceitarPedidosAutomaticamente: false
+        aceitarPedidosAutomaticamente: false,
+        modoFuncionamentoOnline: MODO_FUNCIONAMENTO_PADRAO
       })
       .onConflictDoNothing()
       .returning()
@@ -58,6 +63,7 @@ export function repositorioConfiguracoes(banco: Banco) {
           id: ID_CONFIGURACOES,
           modalIdentificacaoAtivo: dados.modalIdentificacaoAtivo,
           aceitarPedidosAutomaticamente: dados.aceitarPedidosAutomaticamente,
+          modoFuncionamentoOnline: dados.modoFuncionamentoOnline,
           atualizadoEm: new Date()
         })
         .onConflictDoUpdate({
@@ -65,6 +71,7 @@ export function repositorioConfiguracoes(banco: Banco) {
           set: {
             modalIdentificacaoAtivo: dados.modalIdentificacaoAtivo,
             aceitarPedidosAutomaticamente: dados.aceitarPedidosAutomaticamente,
+            modoFuncionamentoOnline: dados.modoFuncionamentoOnline,
             atualizadoEm: new Date()
           }
         })

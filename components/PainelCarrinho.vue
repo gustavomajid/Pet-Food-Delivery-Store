@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ClipboardList, Minus, Plus, ShoppingBasket, Trash2, X } from '@lucide/vue'
+import { ClipboardList, Minus, Plus, RotateCcw, ShoppingBasket, Trash2, X } from '@lucide/vue'
 import type { PedidoResumo } from '~/types/loja'
 
 const {
@@ -25,8 +25,17 @@ const {
   obterHistoricoPorTelefone,
   obterPedidoAtivoPorTelefone
 } = useHistoricoPedidos()
+const {
+  repetindoPedidoId,
+  avisoRepeticao,
+  erroRepeticao,
+  repetirPedido
+} = useRepetirPedido()
 
+const INTERVALO_ATUALIZACAO_PEDIDO_MS = 7000
 const atualizandoPedido = ref(false)
+const atualizacaoEmAndamento = ref(false)
+let intervaloAtualizacaoPedido: ReturnType<typeof setInterval> | undefined
 const historicoCliente = computed(() => {
   const telefoneCliente = clienteAtual.value?.telefoneCliente
 
@@ -37,6 +46,7 @@ const pedidoAtivoCliente = computed(() => {
 
   return telefoneCliente ? obterPedidoAtivoPorTelefone(telefoneCliente) : pedidoAtivo.value
 })
+const pedidoAtivoId = computed(() => pedidoAtivoCliente.value?.id ?? '')
 const carrinhoVazio = computed(() =>
   itens.value.length === 0 && !pedidoAtivoCliente.value && historicoCliente.value.length === 0
 )
@@ -69,19 +79,60 @@ function formatarData(valor: string) {
   }).format(new Date(valor))
 }
 
-async function recarregarPedidoAtivo() {
+async function recarregarPedidoAtivo(mostrarFeedback = true) {
   const pedido = pedidoAtivoCliente.value
 
-  if (!pedido) {
+  if (!pedido || atualizacaoEmAndamento.value) {
     return
   }
 
-  atualizandoPedido.value = true
+  atualizacaoEmAndamento.value = true
+  atualizandoPedido.value = mostrarFeedback
 
   try {
     await recarregarPedido(pedido.id)
   } finally {
+    atualizacaoEmAndamento.value = false
     atualizandoPedido.value = false
+  }
+}
+
+function pararAtualizacaoAutomatica() {
+  if (intervaloAtualizacaoPedido) {
+    clearInterval(intervaloAtualizacaoPedido)
+    intervaloAtualizacaoPedido = undefined
+  }
+}
+
+function atualizarPedidoAutomaticamente() {
+  if (
+    !aberto.value ||
+    !pedidoAtivoId.value ||
+    document.visibilityState === 'hidden'
+  ) {
+    return
+  }
+
+  void recarregarPedidoAtivo(false)
+}
+
+function iniciarAtualizacaoAutomatica() {
+  pararAtualizacaoAutomatica()
+
+  if (!aberto.value || !pedidoAtivoId.value) {
+    return
+  }
+
+  atualizarPedidoAutomaticamente()
+  intervaloAtualizacaoPedido = setInterval(
+    atualizarPedidoAutomaticamente,
+    INTERVALO_ATUALIZACAO_PEDIDO_MS
+  )
+}
+
+function atualizarPedidoAoVoltarParaAba() {
+  if (document.visibilityState === 'visible') {
+    atualizarPedidoAutomaticamente()
   }
 }
 
@@ -89,16 +140,24 @@ function registrarPedidoConcluido(pedido: PedidoResumo) {
   registrarPedido(pedido)
 }
 
-watch(aberto, (valor) => {
-  if (!valor) {
+watch([aberto, pedidoAtivoId], ([carrinhoAberto]) => {
+  iniciarAtualizacaoAutomatica()
+
+  if (!carrinhoAberto) {
     return
   }
 
   carregarHistoricoLocal()
+})
 
-  if (pedidoAtivoCliente.value) {
-    void recarregarPedidoAtivo()
-  }
+onMounted(() => {
+  iniciarAtualizacaoAutomatica()
+  document.addEventListener('visibilitychange', atualizarPedidoAoVoltarParaAba)
+})
+
+onBeforeUnmount(() => {
+  pararAtualizacaoAutomatica()
+  document.removeEventListener('visibilitychange', atualizarPedidoAoVoltarParaAba)
 })
 </script>
 
@@ -197,13 +256,33 @@ watch(aberto, (valor) => {
               <span>{{ historicoVisivel.length }} recente(s)</span>
             </header>
 
+            <p v-if="avisoRepeticao" class="aviso-formulario" aria-live="polite">
+              {{ avisoRepeticao }}
+            </p>
+            <p v-if="erroRepeticao" class="erro-formulario" aria-live="assertive">
+              {{ erroRepeticao }}
+            </p>
+
             <ul>
               <li v-for="pedido in historicoVisivel" :key="pedido.id">
-                <NuxtLink :to="`/pedido/${pedido.id}`" @click="aberto = false">
-                  <span>Pedido #{{ pedido.id.slice(0, 8) }}</span>
-                  <strong>{{ formatarCentavos(pedido.totalCentavos) }}</strong>
-                  <small>{{ textoStatus(pedido.status) }} - {{ formatarData(pedido.criadoEm) }}</small>
-                </NuxtLink>
+                <div class="historico-pedidos__item">
+                  <NuxtLink :to="`/pedido/${pedido.id}`" @click="aberto = false">
+                    <span>Pedido #{{ pedido.id.slice(0, 8) }}</span>
+                    <strong>{{ formatarCentavos(pedido.totalCentavos) }}</strong>
+                    <small>{{ textoStatus(pedido.status) }} - {{ formatarData(pedido.criadoEm) }}</small>
+                  </NuxtLink>
+
+                  <button
+                    class="historico-pedidos__repetir"
+                    type="button"
+                    :aria-label="`Repetir pedido ${pedido.id.slice(0, 8)}`"
+                    :disabled="Boolean(repetindoPedidoId)"
+                    @click="repetirPedido(pedido)"
+                  >
+                    <RotateCcw :size="17" aria-hidden="true" />
+                    <span>{{ repetindoPedidoId === pedido.id ? 'Montando' : 'Repetir' }}</span>
+                  </button>
+                </div>
               </li>
             </ul>
           </section>

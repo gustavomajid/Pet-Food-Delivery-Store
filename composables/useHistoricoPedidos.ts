@@ -26,7 +26,9 @@ function mesclarPedidos(pedidos: PedidoResumo[]) {
   const mapa = new Map<string, PedidoResumo>()
 
   for (const pedido of pedidos) {
-    mapa.set(pedido.id, pedido)
+    if (!mapa.has(pedido.id)) {
+      mapa.set(pedido.id, pedido)
+    }
   }
 
   return ordenarPedidos([...mapa.values()]).slice(0, LIMITE_HISTORICO)

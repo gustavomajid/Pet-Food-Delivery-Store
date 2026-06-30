@@ -8,6 +8,18 @@ export type Categoria = {
 export type ConfiguracoesLoja = {
   modalIdentificacaoAtivo: boolean
   aceitarPedidosAutomaticamente: boolean
+  modoFuncionamentoOnline: ModoFuncionamentoOnline
+  funcionamento: FuncionamentoLoja
+}
+
+export type ModoFuncionamentoOnline = 'automatico' | 'aberta' | 'fechada'
+
+export type FuncionamentoLoja = {
+  aberta: boolean
+  modo: ModoFuncionamentoOnline
+  manual: boolean
+  horario: string
+  mensagem: string
 }
 
 export type Produto = {
@@ -19,6 +31,9 @@ export type Produto = {
   marca: string
   precoCentavos: number
   estoque: number
+  fonteEstoque: 'sistema' | 'wms'
+  codigoExterno: string | null
+  estoqueAtualizadoEm: string
   peso: string
   imagemUrl: string
   destaque: boolean
@@ -46,6 +61,12 @@ export type ItemCarrinho = {
   imagemUrl: string
   quantidade: number
   estoque: number
+}
+
+export type ResultadoRepetirPedido = {
+  itens: ItemCarrinho[]
+  indisponiveis: string[]
+  quantidadesAjustadas: string[]
 }
 
 export type TipoEntrega = 'retirada' | 'entrega_local' | 'agendada'

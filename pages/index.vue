@@ -2,6 +2,7 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Clock,
   ClipboardList,
   Home,
   Search,
@@ -9,6 +10,10 @@ import {
   UserRound,
   X,
 } from '@lucide/vue'
+import {
+  FUNCIONAMENTO_LOJA_PADRAO,
+  criarConfiguracoesLojaPadrao
+} from '~/composables/useConfiguracoesLoja'
 import type { Categoria, ConfiguracoesLoja, Produto, ProdutosPaginados } from '~/types/loja'
 
 type TipoRedeSocial = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok'
@@ -46,10 +51,7 @@ const { data: dadosConfiguracoes } = await useFetch<{ configuracoes: Configuraco
   '/api/configuracoes',
   {
     default: () => ({
-      configuracoes: {
-        modalIdentificacaoAtivo: true,
-        aceitarPedidosAutomaticamente: false
-      }
+      configuracoes: criarConfiguracoesLojaPadrao()
     })
   }
 )
@@ -73,6 +75,10 @@ const {
 })
 
 const categorias = computed(() => dadosCategorias.value?.categorias ?? [])
+const funcionamentoLoja = computed(
+  () => dadosConfiguracoes.value?.configuracoes.funcionamento ?? FUNCIONAMENTO_LOJA_PADRAO
+)
+const lojaOnlineFechada = computed(() => !funcionamentoLoja.value.aberta)
 const produtos = computed(() => dadosProdutos.value?.produtos ?? [])
 const paginacao = computed(() => dadosProdutos.value?.paginacao ?? {
   pagina: 1,
@@ -196,6 +202,7 @@ function adicionarProdutoAoCarrinho(produto: Produto) {
 }
 
 function abrirIdentificacaoSeAtivo() {
+
   if (modalIdentificacaoSolicitado.value) {
     return
   }
@@ -204,6 +211,7 @@ function abrirIdentificacaoSeAtivo() {
     modalIdentificacaoSolicitado.value = true
     abrirModalIdentificacao()
   }
+
 }
 
 onMounted(abrirIdentificacaoSeAtivo)
@@ -285,6 +293,15 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
           <p>Pedido online</p>
         </div>
       </div>
+
+      <section v-if="lojaOnlineFechada" class="aviso-loja-fechada" aria-live="polite">
+        <Clock :size="22" aria-hidden="true" />
+        <div>
+          <strong>Loja online fechada</strong>
+          <span>{{ funcionamentoLoja.mensagem }}</span>
+          <small>{{ funcionamentoLoja.horario }}</small>
+        </div>
+      </section>
 
       <div class="busca-filtros">
         <label class="campo-busca">
@@ -421,19 +438,11 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
         <span>Carrinho</span>
       </button>
 
-      <NuxtLink
-        v-if="pedidoAcompanhamentoId"
-        class="botao-nav-inferior"
-        :to="`/pedido/${pedidoAcompanhamentoId}`"
-      >
+      <NuxtLink class="botao-nav-inferior" to="/pedidos">
         <ClipboardList :size="24" aria-hidden="true" />
         <span v-if="quantidadePedidosCliente > 0" class="contador-nav">{{ pedidosBadgeTexto }}</span>
         <span>Pedidos</span>
       </NuxtLink>
-      <button v-else class="botao-nav-inferior" type="button" disabled>
-        <ClipboardList :size="24" aria-hidden="true" />
-        <span>Pedidos</span>
-      </button>
 
       <button class="botao-nav-inferior" type="button" @click="abrirModalIdentificacao">
         <UserRound :size="24" aria-hidden="true" />

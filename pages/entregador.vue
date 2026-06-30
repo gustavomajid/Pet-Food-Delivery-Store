@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import {
   ArrowDown,
   ArrowUp,
@@ -14,6 +15,7 @@ import {
   Truck,
   X
 } from '@lucide/vue'
+
 import type { ItemPedidoResumo, PedidoResumo, StatusPedido } from '~/types/loja'
 
 type Coordenadas = {
@@ -31,6 +33,8 @@ type LojaEstoque = {
   nome: string
   regiao: string
   endereco: string
+  mapsConsulta: string
+  funcionamento: string
   coordenadas: Coordenadas
 }
 
@@ -40,6 +44,7 @@ type ParadaRota = {
   titulo: string
   subtitulo: string
   endereco: string
+  detalhe?: string
   pedidoId?: string
 }
 
@@ -49,38 +54,43 @@ useHead({
   title: 'Entregador | Fazendinha'
 })
 
-// Ajuste estes pontos com os enderecos/coordenadas reais das lojas Fazendinha.
 const estoquePadrao: LojaEstoque = {
-  id: 'centro',
-  nome: 'Fazendinha Centro',
-  regiao: 'Centro',
-  endereco: 'Centro, Catanduva - SP',
+  id: 'loja-1',
+  nome: 'Loja 1 - Parque Iracema',
+  regiao: 'Parque Iracema',
+  endereco: 'R. Nhandeara, 171 - Parque Iracema, Catanduva - SP',
+  mapsConsulta: 'AgroPet Fazendinha Loja 1, Rua Nhandeara 171, Parque Iracema, Catanduva - SP',
+  funcionamento: 'Aberta de segunda a sábado, das 08h às 18h, e aos domingos, das 08h às 12h.',
   coordenadas: {
-    latitude: -21.1378,
-    longitude: -48.9728
+    latitude: -21.1442076,
+    longitude: -48.9623585
   }
 }
 
 const estoquesFazendinha: LojaEstoque[] = [
   estoquePadrao,
   {
-    id: 'norte',
-    nome: 'Fazendinha Norte',
-    regiao: 'Norte',
-    endereco: 'Zona norte, Catanduva - SP',
+    id: 'loja-2',
+    nome: 'Loja 2 - Vila Rodrigues',
+    regiao: 'Vila Rodrigues',
+    endereco: 'R. Macapá, 516 - Vila Rodrigues, Catanduva - SP',
+    mapsConsulta: 'AgroPet Fazendinha Loja 2, Rua Macapá 516, Vila Rodrigues, Catanduva - SP',
+    funcionamento: 'Aberta de segunda a sábado, das 09h às 13h e das 14h às 18h (fechada aos domingos).',
     coordenadas: {
-      latitude: -21.1189,
-      longitude: -48.9737
+      latitude: -21.1341,
+      longitude: -48.9832
     }
   },
   {
-    id: 'sul',
-    nome: 'Fazendinha Sul',
-    regiao: 'Sul',
-    endereco: 'Zona sul, Catanduva - SP',
+    id: 'loja-3',
+    nome: 'Loja 3 - Higienópolis',
+    regiao: 'Higienópolis',
+    endereco: 'R. Guaporé, 337 - Higienópolis, Catanduva - SP',
+    mapsConsulta: 'AgroPet Fazendinha Loja 3, Rua Guaporé 337, Higienópolis, Catanduva - SP',
+    funcionamento: 'Aberta de segunda a sábado, das 08h às 18h, e aos domingos, das 08h às 12h.',
     coordenadas: {
-      latitude: -21.1557,
-      longitude: -48.9815
+      latitude: -21.1257,
+      longitude: -48.9715
     }
   }
 ]
@@ -167,7 +177,8 @@ const paradasRota = computed<ParadaRota[]>(() => [
     tipo: 'estoque' as const,
     titulo: loja.nome,
     subtitulo: `Retirada de produtos - ${loja.regiao}`,
-    endereco: loja.endereco
+    endereco: loja.endereco,
+    detalhe: loja.funcionamento
   })),
   ...pedidosSelecionados.value.map((pedido) => ({
     id: `entrega-${pedido.id}`,
@@ -457,10 +468,7 @@ function encontrarEstoqueMaisProximo() {
 }
 
 function distanciaLoja(loja: LojaEstoque) {
-  const origem = localizacao.value ?? {
-    latitude: -21.1378,
-    longitude: -48.9728
-  }
+  const origem = localizacao.value ?? estoquePadrao.coordenadas
 
   return distanciaEntre(origem, loja.coordenadas)
 }
@@ -490,12 +498,9 @@ function montarUrlGoogleMaps() {
     return ''
   }
 
-  const origem = localizacao.value
-    ? `${localizacao.value.latitude},${localizacao.value.longitude}`
-    : 'Catanduva - SP'
   const pontos = [
-    ...paradasRetirada.value.map((loja) => `${loja.coordenadas.latitude},${loja.coordenadas.longitude}`),
-    ...pedidosSelecionados.value.map((pedido) => `${pedido.enderecoEntrega}, Catanduva - SP`)
+    ...paradasRetirada.value.map((loja) => loja.mapsConsulta),
+    ...pedidosSelecionados.value.map((pedido) => pedido.enderecoEntrega)
   ]
   const destino = pontos.at(-1)
 
@@ -505,10 +510,10 @@ function montarUrlGoogleMaps() {
 
   const parametros = new URLSearchParams({
     api: '1',
-    origin: origem,
     destination: destino,
     travelmode: 'driving'
   })
+
   const waypoints = pontos.slice(0, -1)
 
   if (waypoints.length > 0) {
@@ -563,7 +568,7 @@ function telefoneLink(telefone: string) {
 
 function enderecoMaps(endereco: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    `${endereco}, Catanduva - SP`
+    endereco
   )}`
 }
 </script>
@@ -619,7 +624,7 @@ function enderecoMaps(endereco: string) {
             <span v-if="localizacao">
               {{ formatarDistancia(distanciaLoja(estoqueMaisProximo)) }} do {{ estoqueMaisProximo.nome }}
             </span>
-            <span v-else>{{ erroLocalizacao || 'Base: Catanduva - SP' }}</span>
+            <span v-else>{{ erroLocalizacao || `Base: ${estoquePadrao.nome}` }}</span>
           </div>
           <button class="botao-icone" type="button" aria-label="Atualizar localizacao" @click="iniciarMonitoramentoLocalizacao">
             <Navigation :size="18" aria-hidden="true" />
@@ -648,6 +653,7 @@ function enderecoMaps(endereco: string) {
                 <strong>{{ parada.titulo }}</strong>
                 <span>{{ parada.subtitulo }}</span>
                 <small>{{ parada.endereco }}</small>
+                <small v-if="parada.detalhe">{{ parada.detalhe }}</small>
               </div>
               <div v-if="parada.tipo === 'entrega'" class="acoes-ordem-rota">
                 <button

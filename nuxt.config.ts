@@ -1,10 +1,13 @@
+const bancoLocal = 'postgresql://postgres:postgres@localhost:5434/fazendinha'
+
 export default defineNuxtConfig({
   compatibilityDate: '2026-05-27',
   css: ['~/assets/css/main.css'],
   devtools: { enabled: true },
   runtimeConfig: {
-    databaseUrl: process.env.DATABASE_URL || '',
+    databaseUrl: process.env.DATABASE_URL || (process.env.NODE_ENV === 'production' ? '' : bancoLocal),
     adminSenha: process.env.ADMIN_SENHA || 'admin123',
+    wmsApiToken: process.env.WMS_API_TOKEN || '',
     public: {
       storeName: process.env.NUXT_PUBLIC_STORE_NAME || 'AgroPet Fazendinha',
       socialLinks: {

@@ -1,0 +1,1 @@
+ALTER TABLE "configuracoes_loja" ADD COLUMN "modo_funcionamento_online" varchar(20) DEFAULT 'automatico' NOT NULL;

@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { CheckCircle2, Clock, Store, Truck } from '@lucide/vue'
 import type { Component } from 'vue'
-import type { FormaPagamento, PedidoPayload, PedidoResumo, TipoEntrega } from '~/types/loja'
+import type {
+  ConfiguracoesLoja,
+  FormaPagamento,
+  PedidoPayload,
+  PedidoResumo,
+  TipoEntrega
+} from '~/types/loja'
+import {
+  FUNCIONAMENTO_LOJA_PADRAO,
+  criarConfiguracoesLojaPadrao
+} from '~/composables/useConfiguracoesLoja'
 
 type EnderecoCep = {
   cep: string
@@ -39,6 +49,14 @@ const {
   obterPedidoAtivoPorTelefone,
   carregarHistoricoCliente
 } = useHistoricoPedidos()
+const { data: dadosConfiguracoes } = await useFetch<{ configuracoes: ConfiguracoesLoja }>(
+  '/api/configuracoes',
+  {
+    default: () => ({
+      configuracoes: criarConfiguracoesLojaPadrao()
+    })
+  }
+)
 
 const opcoesEntrega: Array<{ valor: TipoEntrega; texto: string; icone: Component }> = [
   { valor: 'entrega_local', texto: 'Entrega', icone: Truck },
@@ -86,6 +104,10 @@ const precisaEnderecoEntrega = computed(() => tipoEntrega.value !== 'retirada')
 const enderecoCompleto = computed(() =>
   precisaEnderecoEntrega.value ? montarEnderecoEntrega() : enderecoRetirada
 )
+const funcionamentoLoja = computed(
+  () => dadosConfiguracoes.value?.configuracoes.funcionamento ?? FUNCIONAMENTO_LOJA_PADRAO
+)
+const lojaOnlineAberta = computed(() => funcionamentoLoja.value.aberta)
 const pedidoAtivoFormulario = computed(() =>
   obterPedidoAtivoPorTelefone(formulario.telefoneCliente || clienteAtual.value?.telefoneCliente)
 )
@@ -101,6 +123,27 @@ function extrairPedidoAtivo(error: unknown) {
   }
 
   return erro.data?.data?.pedido ?? erro.data?.pedido ?? null
+}
+
+function mensagemErroPedido(error: unknown) {
+  const erro = error as {
+    data?: {
+      message?: string
+      statusMessage?: string
+      data?: {
+        funcionamento?: {
+          mensagem?: string
+        }
+      }
+    }
+    message?: string
+  }
+
+  return erro.data?.data?.funcionamento?.mensagem ||
+    erro.data?.statusMessage ||
+    erro.data?.message ||
+    erro.message ||
+    'Nao foi possivel fechar o pedido.'
 }
 
 function digitosCep() {
@@ -396,6 +439,11 @@ function aoDigitarCep() {
 }
 
 async function enviarPedido() {
+  if (!lojaOnlineAberta.value) {
+    erro.value = funcionamentoLoja.value.mensagem
+    return
+  }
+
   if (normalizarTelefone(formulario.telefoneCliente).length >= 8) {
     await buscarCadastroPorTelefone()
   }
@@ -467,8 +515,7 @@ async function enviarPedido() {
       return
     }
 
-    erro.value =
-      error instanceof Error ? error.message : 'Nao foi possivel fechar o pedido.'
+    erro.value = mensagemErroPedido(error)
   } finally {
     enviando.value = false
   }
@@ -504,6 +551,15 @@ onBeforeUnmount(() => {
     </div>
 
     <form v-else class="formulario-pedido" @submit.prevent="enviarPedido">
+      <section v-if="!lojaOnlineAberta" class="aviso-loja-fechada aviso-loja-fechada--compacto">
+        <Clock :size="20" aria-hidden="true" />
+        <div>
+          <strong>Loja online fechada</strong>
+          <span>{{ funcionamentoLoja.mensagem }}</span>
+          <small>{{ funcionamentoLoja.horario }}</small>
+        </div>
+      </section>
+
       <label>
         Nome
         <input v-model="formulario.nomeCliente" autocomplete="name" required>
@@ -614,8 +670,8 @@ onBeforeUnmount(() => {
         Voce ja tem um pedido em andamento. Abra o acompanhamento antes de fazer outro pedido.
       </p>
 
-      <button class="botao-fechar-pedido" type="submit" :disabled="enviando || consultandoCep || consultandoCliente || itens.length === 0">
-        {{ pedidoAtivoFormulario ? 'Ver pedido em andamento' : enviando ? 'Enviando...' : 'Fechar pedido' }}
+      <button class="botao-fechar-pedido" type="submit" :disabled="!lojaOnlineAberta || enviando || consultandoCep || consultandoCliente || itens.length === 0">
+        {{ !lojaOnlineAberta ? 'Loja fechada' : pedidoAtivoFormulario ? 'Ver pedido em andamento' : enviando ? 'Enviando...' : 'Fechar pedido' }}
       </button>
     </form>
   </div>

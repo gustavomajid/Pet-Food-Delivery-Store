@@ -10,6 +10,8 @@ type ProdutoFormulario = {
   marca: string
   preco: string
   estoque: number
+  fonteEstoque: 'sistema' | 'wms'
+  codigoExterno: string
   peso: string
   imagemUrl: string
   destaque: boolean
@@ -32,6 +34,8 @@ const produtoVazio = (): ProdutoFormulario => ({
   marca: '',
   preco: '',
   estoque: 0,
+  fonteEstoque: 'sistema',
+  codigoExterno: '',
   peso: '',
   imagemUrl: '',
   destaque: false,
@@ -91,6 +95,8 @@ function editarProduto(produto: Produto) {
     marca: produto.marca,
     preco: centavosParaReais(produto.precoCentavos),
     estoque: produto.estoque,
+    fonteEstoque: produto.fonteEstoque,
+    codigoExterno: produto.codigoExterno ?? '',
     peso: produto.peso,
     imagemUrl: produto.imagemUrl,
     destaque: produto.destaque,
@@ -140,6 +146,8 @@ async function salvarProduto() {
     marca: formulario.marca,
     precoCentavos: reaisParaCentavos(formulario.preco),
     estoque: Number(formulario.estoque),
+    fonteEstoque: formulario.fonteEstoque,
+    codigoExterno: formulario.codigoExterno.trim() || null,
     peso: formulario.peso,
     imagemUrl: formulario.imagemUrl,
     destaque: formulario.destaque,
@@ -226,8 +234,33 @@ async function inativarProduto(produto: Produto) {
         </label>
 
         <label>
-          Estoque
-          <input v-model.number="formulario.estoque" type="number" min="0" required>
+          Quantidade disponivel
+          <input
+            v-model.number="formulario.estoque"
+            type="number"
+            min="0"
+            required
+            :disabled="formulario.fonteEstoque === 'wms' && formulario.id !== null"
+          >
+          <small v-if="formulario.fonteEstoque === 'wms'">Atualizada pela API do WMS.</small>
+        </label>
+
+        <label>
+          Controle do estoque
+          <select v-model="formulario.fonteEstoque">
+            <option value="sistema">Este sistema</option>
+            <option value="wms">WMS / API externa</option>
+          </select>
+        </label>
+
+        <label>
+          Codigo externo / SKU
+          <input
+            v-model="formulario.codigoExterno"
+            maxlength="120"
+            :required="formulario.fonteEstoque === 'wms'"
+            placeholder="Ex.: RACAO-15KG-001"
+          >
         </label>
 
         <label>
@@ -304,7 +337,11 @@ async function inativarProduto(produto: Produto) {
           <div>
             <strong>{{ produto.nome }}</strong>
             <span>{{ produto.marca }} - {{ produto.categoriaNome }}</span>
-            <span>{{ formatarCentavos(produto.precoCentavos) }} - estoque {{ produto.estoque }}</span>
+            <span>{{ formatarCentavos(produto.precoCentavos) }} - disponivel {{ produto.estoque }}</span>
+            <span>
+              Controle: {{ produto.fonteEstoque === 'wms' ? 'WMS' : 'sistema' }}
+              <template v-if="produto.codigoExterno"> - SKU {{ produto.codigoExterno }}</template>
+            </span>
           </div>
           <div class="linha-admin__acoes">
             <button class="botao-admin botao-admin--secundario" type="button" @click="editarProduto(produto)">

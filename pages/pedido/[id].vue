@@ -152,9 +152,9 @@ function voltarPaginaAnterior() {
         <span>Carrinho</span>
       </button>
 
-      <NuxtLink class="botao-nav-inferior ativo" :to="`/pedido/${idPedido}`" aria-current="page">
+      <NuxtLink class="botao-nav-inferior ativo" to="/pedidos" aria-current="page">
         <ClipboardList :size="24" aria-hidden="true" />
-        <span>Pedido</span>
+        <span>Pedidos</span>
       </NuxtLink>
 
       <button class="botao-nav-inferior" type="button" @click="voltarPaginaAnterior">

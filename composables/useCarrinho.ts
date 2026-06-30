@@ -105,6 +105,16 @@ export function useCarrinho() {
     itens.value = []
   }
 
+  function substituirItens(novosItens: ItemCarrinho[], novoTipoEntrega?: TipoEntrega) {
+    itens.value = novosItens.map((item) => ({ ...item }))
+
+    if (novoTipoEntrega) {
+      tipoEntrega.value = novoTipoEntrega
+    }
+
+    aberto.value = itens.value.length > 0
+  }
+
   return {
     itens,
     aberto,
@@ -118,6 +128,7 @@ export function useCarrinho() {
     aumentar,
     diminuir,
     remover,
-    limpar
+    limpar,
+    substituirItens
   }
 }

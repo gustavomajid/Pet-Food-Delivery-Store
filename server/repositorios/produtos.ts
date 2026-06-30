@@ -1,5 +1,5 @@
 import { and, asc, count, eq, inArray, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
-import { categorias, produtos } from '../banco/esquema'
+import { categorias, movimentacoesEstoque, produtos } from '../banco/esquema'
 import type { Banco } from '../banco/tipos'
 
 export type FiltrosProduto = {
@@ -18,6 +18,8 @@ export type DadosProduto = {
   marca: string
   precoCentavos: number
   estoque: number
+  fonteEstoque: 'sistema' | 'wms'
+  codigoExterno?: string | null
   peso: string
   imagemUrl: string
   destaque: boolean
@@ -75,6 +77,9 @@ export function repositorioProdutos(banco: Banco) {
     marca: produtos.marca,
     precoCentavos: produtos.precoCentavos,
     estoque: produtos.estoque,
+    fonteEstoque: produtos.fonteEstoque,
+    codigoExterno: produtos.codigoExterno,
+    estoqueAtualizadoEm: produtos.estoqueAtualizadoEm,
     peso: produtos.peso,
     imagemUrl: produtos.imagemUrl,
     destaque: produtos.destaque,
@@ -195,18 +200,71 @@ export function repositorioProdutos(banco: Banco) {
     },
 
     async criar(dados: DadosProduto) {
-      const [produto] = await banco.insert(produtos).values(dados).returning()
-      return produto
+      return banco.transaction(async (tx) => {
+        const agora = new Date()
+        const [produto] = await tx
+          .insert(produtos)
+          .values({ ...dados, estoqueAtualizadoEm: agora })
+          .returning()
+
+        if (!produto) {
+          throw new Error('Nao foi possivel criar o produto.')
+        }
+
+        if (produto.estoque > 0) {
+          await tx.insert(movimentacoesEstoque).values({
+            produtoId: produto.id,
+            quantidadeAnterior: 0,
+            quantidadeNova: produto.estoque,
+            diferenca: produto.estoque,
+            origem: 'cadastro'
+          })
+        }
+
+        return produto
+      })
     },
 
     async atualizar(id: number, dados: DadosProduto) {
-      const [produto] = await banco
-        .update(produtos)
-        .set({ ...dados, atualizadoEm: new Date() })
-        .where(eq(produtos.id, id))
-        .returning()
+      return banco.transaction(async (tx) => {
+        const [produtoAnterior] = await tx
+          .select()
+          .from(produtos)
+          .where(eq(produtos.id, id))
+          .for('update')
 
-      return produto
+        if (!produtoAnterior) {
+          return undefined
+        }
+
+        const estoque = produtoAnterior.fonteEstoque === 'wms' && dados.fonteEstoque === 'wms'
+          ? produtoAnterior.estoque
+          : dados.estoque
+        const agora = new Date()
+        const estoqueMudou = estoque !== produtoAnterior.estoque
+        const [produto] = await tx
+          .update(produtos)
+          .set({
+            ...dados,
+            estoque,
+            atualizadoEm: agora,
+            estoqueAtualizadoEm: estoqueMudou ? agora : produtoAnterior.estoqueAtualizadoEm
+          })
+          .where(eq(produtos.id, id))
+          .returning()
+
+        if (estoqueMudou) {
+          await tx.insert(movimentacoesEstoque).values({
+            produtoId: id,
+            quantidadeAnterior: produtoAnterior.estoque,
+            quantidadeNova: estoque,
+            diferenca: estoque - produtoAnterior.estoque,
+            origem: 'ajuste_admin'
+          })
+        }
+
+        return produto
+      })
     },
 
     async inativar(id: number) {
