@@ -80,6 +80,9 @@ npm run db:migrate
 npm run db:seed
 ```
 
+Na Vercel, `vercel.json` executa `npm run db:migrate` antes do build. Assim, migrations
+novas sao aplicadas automaticamente ao banco configurado no ambiente do deploy.
+
 O endpoint `GET /api/health` confirma o nome do ambiente e a conexao com o banco sem
 retornar credenciais. Depois do deploy, valide `https://SEU-DOMINIO/api/health`.
 
