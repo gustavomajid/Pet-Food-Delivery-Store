@@ -57,6 +57,32 @@ O painel administrativo usa a senha do `.env`:
 ADMIN_SENHA=admin123
 ```
 
+## Ambientes e deploy
+
+O ambiente e controlado somente por variaveis; segredos nao devem ser enviados ao GitHub.
+
+| Ambiente | `APP_ENV` | Banco | `DATABASE_SSL` |
+| --- | --- | --- | --- |
+| Local | `local` | PostgreSQL do Docker em `localhost:5434` | `false` |
+| Preview Vercel | `preview` | Supabase (recomendado: Session Pooler) | `true` |
+| Producao Vercel | `production` | Supabase (recomendado: Session Pooler) | `true` |
+
+No projeto da Vercel, cadastre `DATABASE_URL`, `DATABASE_SSL=true`, `ADMIN_SENHA`,
+`WMS_API_TOKEN` e as variaveis publicas `NUXT_PUBLIC_*`. Use bancos ou projetos Supabase
+separados para Preview e Production. A URL deve ficar apenas nas variaveis protegidas da
+Vercel, nunca em arquivos versionados.
+
+Antes do primeiro deploy em cada banco Supabase, execute localmente com a `DATABASE_URL`
+desse ambiente:
+
+```bash
+npm run db:migrate
+npm run db:seed
+```
+
+O endpoint `GET /api/health` confirma o nome do ambiente e a conexao com o banco sem
+retornar credenciais. Depois do deploy, valide `https://SEU-DOMINIO/api/health`.
+
 ## Controle de estoque e integracao WMS
 
 No cadastro de cada produto, escolha quem controla a quantidade disponivel:
