@@ -20,7 +20,7 @@ export function repositorioConfiguracoes(banco: Banco) {
       .values({
         id: ID_CONFIGURACOES,
         modalIdentificacaoAtivo: true,
-        aceitarPedidosAutomaticamente: false,
+        aceitarPedidosAutomaticamente: true,
         modoFuncionamentoOnline: MODO_FUNCIONAMENTO_PADRAO
       })
       .onConflictDoNothing()
