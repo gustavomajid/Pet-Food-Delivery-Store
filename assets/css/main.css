@@ -2016,6 +2016,42 @@ a {
   display: none;
 }
 
+@media (max-width: 719px) {
+  .admin-topo {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .admin-topo .marca-loja {
+    flex: 1 1 auto;
+  }
+
+  .admin-topo .marca-loja__icone {
+    width: 42px;
+    height: 42px;
+  }
+
+  .admin-topo .marca-loja > div > span,
+  .admin-topo .acoes-topo .botao-admin {
+    display: none;
+  }
+
+  .admin-topo .acoes-topo {
+    flex: 0 0 auto;
+    gap: 6px;
+    overflow: visible;
+  }
+
+  .admin-topo .botao-icone {
+    width: 42px;
+    height: 42px;
+  }
+
+  .metricas-admin {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .rodape-admin-fixo {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }

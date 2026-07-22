@@ -202,7 +202,7 @@ const textoLocalizacao = computed(() => {
   }
 
   if (statusLocalizacao.value === 'erro') {
-    return 'Sem permissao'
+    return 'Desativada'
   }
 
   if (statusLocalizacao.value === 'indisponivel') {
@@ -287,7 +287,7 @@ function iniciarMonitoramentoLocalizacao() {
     },
     () => {
       statusLocalizacao.value = 'erro'
-      erroLocalizacao.value = 'Permita o acesso a localizacao para sugerir a rota a partir do entregador.'
+      erroLocalizacao.value = 'Ative a localizacao.'
     },
     {
       enableHighAccuracy: true,
