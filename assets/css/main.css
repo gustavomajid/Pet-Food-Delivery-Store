@@ -2286,8 +2286,100 @@ a {
   gap: 14px;
 }
 
+.barra-operacao-pedidos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-color: rgba(40, 114, 75, 0.22);
+  background: rgba(238, 248, 238, 0.82);
+}
+
+.filtros-pedidos {
+  display: flex;
+  min-width: 0;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filtros-pedidos::-webkit-scrollbar {
+  display: none;
+}
+
+.filtros-pedidos button {
+  display: inline-flex;
+  min-height: 40px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--linha);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 850;
+}
+
+.filtros-pedidos button strong {
+  display: grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #edf1ee;
+  color: var(--texto);
+  font-size: 0.76rem;
+}
+
+.filtros-pedidos button.ativo {
+  border-color: var(--verde-escuro);
+  background: var(--verde-escuro);
+  color: #fff;
+}
+
+.filtros-pedidos button.ativo strong {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.botao-imprimir-fila {
+  flex: 0 0 auto;
+}
+
+.grupo-pedidos {
+  overflow: hidden;
+  border-top: 4px solid var(--verde);
+}
+
+.grupo-pedidos[data-status='novo'] {
+  border-top-color: var(--vermelho);
+}
+
+.grupo-pedidos[data-status='confirmado'] {
+  border-top-color: #d6921e;
+}
+
+.grupo-pedidos[data-status='finalizado'] {
+  border-top-color: var(--azul);
+}
+
+.pedido-admin__valor-status {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  text-align: right;
+}
+
 .pedido-admin--detalhado {
   gap: 14px;
+  border-left: 4px solid rgba(40, 114, 75, 0.45);
+  box-shadow: 0 8px 24px rgba(26, 42, 32, 0.06);
 }
 
 .pedido-admin__grid {
@@ -2598,6 +2690,11 @@ a {
 
   .pedido-admin__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lista-pedidos-admin {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 
   .controle-pedido__grid {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Printer } from '@lucide/vue'
+import { CheckCircle2, PackageCheck, Printer, Truck } from '@lucide/vue'
 import type { PedidoResumo, StatusPedido } from '~/types/loja'
 
 const { formatarCentavos } = useDinheiro()
@@ -10,6 +10,8 @@ const INTERVALO_ATUALIZACAO_PEDIDOS_MS = 15000
 const erroAdmin = ref('')
 const statusAtualizando = ref<string | null>(null)
 const pedidosParaImpressao = ref<PedidoResumo[]>([])
+const filtroStatus = ref<'ativos' | 'todos' | StatusPedido>('ativos')
+const versaoPedidosImpressos = ref(0)
 
 let idsPedidosConhecidos = new Set<string>()
 let idsPedidosImpressos = new Set<string>()
@@ -38,13 +40,27 @@ const statusPedido: Array<{ valor: StatusPedido; texto: string }> = [
   { valor: 'cancelado', texto: 'Cancelado' }
 ]
 
+const pedidosFiltrados = computed(() => {
+  if (filtroStatus.value === 'todos') {
+    return pedidos.value
+  }
+
+  if (filtroStatus.value === 'ativos') {
+    return pedidos.value.filter((pedido) =>
+      ['novo', 'confirmado', 'em_separacao', 'saiu_para_entrega', 'pronto_para_retirada'].includes(pedido.status)
+    )
+  }
+
+  return pedidos.value.filter((pedido) => pedido.status === filtroStatus.value)
+})
+
 const gruposStatus = computed(() =>
   statusPedido
     .map((status) => ({
       ...status,
-      pedidos: pedidos.value.filter((pedido) => pedido.status === status.valor)
+      pedidos: pedidosFiltrados.value.filter((pedido) => pedido.status === status.valor)
     }))
-    .filter((grupo) => grupo.pedidos.length > 0 || grupo.valor === 'novo')
+    .filter((grupo) => grupo.pedidos.length > 0)
 )
 
 const totalNovos = computed(() => pedidos.value.filter((pedido) => pedido.status === 'novo').length)
@@ -54,6 +70,15 @@ const totalEmAndamento = computed(() =>
   ).length
 )
 const totalFinalizados = computed(() => pedidos.value.filter((pedido) => pedido.status === 'finalizado').length)
+const pedidosPendentesImpressao = computed(() => {
+  versaoPedidosImpressos.value
+
+  return pedidos.value.filter(
+    (pedido) =>
+      ['confirmado', 'em_separacao'].includes(pedido.status)
+      && !idsPedidosImpressos.has(pedido.id)
+  )
+})
 
 function textoStatus(status: StatusPedido) {
   return statusPedido.find((item) => item.valor === status)?.texto ?? status
@@ -129,6 +154,7 @@ function registrarPedidosImpressos(listaPedidos: PedidoResumo[]) {
   }
 
   salvarIdsPedidosImpressos()
+  versaoPedidosImpressos.value += 1
 }
 
 async function imprimirPedidos(listaPedidos: PedidoResumo[]) {
@@ -146,6 +172,35 @@ async function imprimirPedidos(listaPedidos: PedidoResumo[]) {
 function imprimirPedido(pedido: PedidoResumo) {
   registrarPedidosImpressos([pedido])
   void imprimirPedidos([pedido])
+}
+
+function imprimirFilaPendente() {
+  const fila = pedidosPendentesImpressao.value
+
+  registrarPedidosImpressos(fila)
+  void imprimirPedidos(fila)
+}
+
+function proximaAcao(pedido: PedidoResumo) {
+  if (pedido.status === 'novo') {
+    return { status: 'confirmado' as const, texto: 'Confirmar', icone: CheckCircle2 }
+  }
+
+  if (pedido.status === 'confirmado') {
+    return { status: 'em_separacao' as const, texto: 'Separar', icone: PackageCheck }
+  }
+
+  if (pedido.status === 'em_separacao') {
+    return pedido.tipoEntrega === 'retirada'
+      ? { status: 'pronto_para_retirada' as const, texto: 'Pronto', icone: CheckCircle2 }
+      : { status: 'saiu_para_entrega' as const, texto: 'Despachar', icone: Truck }
+  }
+
+  if (['saiu_para_entrega', 'pronto_para_retirada'].includes(pedido.status)) {
+    return { status: 'finalizado' as const, texto: 'Finalizar', icone: CheckCircle2 }
+  }
+
+  return null
 }
 
 function encerrarImpressao() {
@@ -168,7 +223,7 @@ function processarPedidosRecebidos() {
 
   const pedidosNovosParaImpressao = listaPedidos.filter(
     (pedido) =>
-      pedido.status === 'em_separacao'
+      ['confirmado', 'em_separacao'].includes(pedido.status)
       && !idsPedidosConhecidos.has(pedido.id)
       && !idsPedidosImpressos.has(pedido.id)
   )
@@ -271,6 +326,33 @@ onBeforeUnmount(() => {
       </article>
     </section>
 
+    <section class="painel-admin barra-operacao-pedidos">
+      <div class="filtros-pedidos" aria-label="Filtrar pedidos">
+        <button type="button" :class="{ ativo: filtroStatus === 'ativos' }" @click="filtroStatus = 'ativos'">
+          Ativos <strong>{{ totalNovos + totalEmAndamento }}</strong>
+        </button>
+        <button type="button" :class="{ ativo: filtroStatus === 'confirmado' }" @click="filtroStatus = 'confirmado'">
+          Confirmados <strong>{{ pedidos.filter((pedido) => pedido.status === 'confirmado').length }}</strong>
+        </button>
+        <button type="button" :class="{ ativo: filtroStatus === 'em_separacao' }" @click="filtroStatus = 'em_separacao'">
+          Separação <strong>{{ pedidos.filter((pedido) => pedido.status === 'em_separacao').length }}</strong>
+        </button>
+        <button type="button" :class="{ ativo: filtroStatus === 'todos' }" @click="filtroStatus = 'todos'">
+          Todos <strong>{{ pedidos.length }}</strong>
+        </button>
+      </div>
+
+      <button
+        class="botao-admin botao-imprimir-fila"
+        type="button"
+        :disabled="pedidosPendentesImpressao.length === 0"
+        @click="imprimirFilaPendente"
+      >
+        <Printer :size="17" aria-hidden="true" />
+        Imprimir fila ({{ pedidosPendentesImpressao.length }})
+      </button>
+    </section>
+
     <section v-if="pedidos.length === 0" class="painel-admin">
       <div class="painel-estado painel-estado--compacto">
         <strong>Nenhum pedido recebido</strong>
@@ -278,7 +360,14 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section v-for="grupo in gruposStatus" :key="grupo.valor" class="painel-admin grupo-pedidos">
+    <section v-else-if="pedidosFiltrados.length === 0" class="painel-admin">
+      <div class="painel-estado painel-estado--compacto">
+        <strong>Nenhum pedido neste filtro</strong>
+        <span>Escolha outro status para continuar.</span>
+      </div>
+    </section>
+
+    <section v-for="grupo in gruposStatus" :key="grupo.valor" class="painel-admin grupo-pedidos" :data-status="grupo.valor">
       <div class="titulo-secao">
         <h1>{{ grupo.texto }}</h1>
         <span>{{ grupo.pedidos.length }} pedido(s)</span>
@@ -296,7 +385,10 @@ onBeforeUnmount(() => {
               <strong>{{ pedido.nomeCliente }}</strong>
               <span>#{{ pedido.id.slice(0, 8) }} - {{ formatarData(pedido.criadoEm) }}</span>
             </div>
-            <strong>{{ formatarCentavos(pedido.totalCentavos) }}</strong>
+            <div class="pedido-admin__valor-status">
+              <span class="status-admin">{{ textoStatus(pedido.status) }}</span>
+              <strong>{{ formatarCentavos(pedido.totalCentavos) }}</strong>
+            </div>
           </div>
 
           <div class="pedido-admin__grid">
@@ -342,6 +434,16 @@ onBeforeUnmount(() => {
               >
                 <Printer :size="16" aria-hidden="true" />
                 Imprimir
+              </button>
+              <button
+                v-if="proximaAcao(pedido)"
+                class="botao-admin botao-admin--compacto"
+                type="button"
+                :disabled="statusAtualizando === pedido.id"
+                @click="alterarStatus(pedido, proximaAcao(pedido)!.status)"
+              >
+                <component :is="proximaAcao(pedido)!.icone" :size="16" aria-hidden="true" />
+                {{ proximaAcao(pedido)!.texto }}
               </button>
             </section>
           </div>

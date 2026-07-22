@@ -11,7 +11,7 @@ export const FUNCIONAMENTO_LOJA_PADRAO = {
 export function criarConfiguracoesLojaPadrao(): ConfiguracoesLoja {
   return {
     modalIdentificacaoAtivo: true,
-    aceitarPedidosAutomaticamente: false,
+    aceitarPedidosAutomaticamente: true,
     modoFuncionamentoOnline: 'automatico',
     funcionamento: { ...FUNCIONAMENTO_LOJA_PADRAO }
   }

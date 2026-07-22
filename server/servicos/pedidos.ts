@@ -184,7 +184,7 @@ export async function criarPedido(banco: Banco, entrada: PedidoEntrada) {
   const descontoCentavos = 0
   const totalCentavos = subtotalCentavos + taxaEntregaCentavos - descontoCentavos
   const statusInicial: StatusPedido = configuracoes?.aceitarPedidosAutomaticamente && funcionamento.aberta
-    ? 'em_separacao'
+    ? 'confirmado'
     : 'novo'
 
   const pedido = await repositorio.criar({
