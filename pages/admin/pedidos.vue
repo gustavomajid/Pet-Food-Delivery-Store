@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle2, PackageCheck, Printer, Truck } from '@lucide/vue'
+import { CheckCircle2, PackageCheck, Printer, Search, Truck, X } from '@lucide/vue'
 import type { PedidoResumo, StatusPedido } from '~/types/loja'
 
 const { formatarCentavos } = useDinheiro()
@@ -10,8 +10,15 @@ const INTERVALO_ATUALIZACAO_PEDIDOS_MS = 15000
 const erroAdmin = ref('')
 const statusAtualizando = ref<string | null>(null)
 const pedidosParaImpressao = ref<PedidoResumo[]>([])
-const filtroStatus = ref<'ativos' | 'todos' | StatusPedido>('ativos')
+const filaImpressao = ref<PedidoResumo[]>([])
+const pedidoEmImpressao = ref<PedidoResumo | null>(null)
+const filtroStatus = ref<'todos' | 'entrega' | StatusPedido>('confirmado')
+const buscaPedidos = ref('')
+const paginaAtual = ref(1)
+const pedidoExpandidoId = ref<string | null>(null)
 const versaoPedidosImpressos = ref(0)
+
+const PEDIDOS_POR_PAGINA = 5
 
 let idsPedidosConhecidos = new Set<string>()
 let idsPedidosImpressos = new Set<string>()
@@ -29,6 +36,9 @@ const {
 })
 
 const pedidos = computed(() => dadosPedidos.value?.pedidos ?? [])
+const pedidoSelecionado = computed(() =>
+  pedidos.value.find((pedido) => pedido.id === pedidoExpandidoId.value) ?? null
+)
 
 const statusPedido: Array<{ valor: StatusPedido; texto: string }> = [
   { valor: 'novo', texto: 'Novo' },
@@ -41,33 +51,84 @@ const statusPedido: Array<{ valor: StatusPedido; texto: string }> = [
 ]
 
 const pedidosFiltrados = computed(() => {
-  if (filtroStatus.value === 'todos') {
-    return pedidos.value
+  const termo = buscaPedidos.value.trim().toLocaleLowerCase('pt-BR')
+  const correspondeBusca = (pedido: PedidoResumo) => {
+    if (!termo) {
+      return true
+    }
+
+    return [
+      pedido.id,
+      pedido.nomeCliente,
+      pedido.telefoneCliente,
+      pedido.enderecoEntrega,
+      pedido.observacoes ?? '',
+      ...(pedido.itens ?? []).map((item) => item.nomeProduto)
+    ].some((valor) => valor.toLocaleLowerCase('pt-BR').includes(termo))
   }
 
-  if (filtroStatus.value === 'ativos') {
-    return pedidos.value.filter((pedido) =>
-      ['novo', 'confirmado', 'em_separacao', 'saiu_para_entrega', 'pronto_para_retirada'].includes(pedido.status)
+  if (filtroStatus.value === 'todos') {
+    return pedidos.value.filter(correspondeBusca)
+  }
+
+  if (filtroStatus.value === 'entrega') {
+    return pedidos.value.filter(
+      (pedido) => ['saiu_para_entrega', 'pronto_para_retirada'].includes(pedido.status) && correspondeBusca(pedido)
     )
   }
 
-  return pedidos.value.filter((pedido) => pedido.status === filtroStatus.value)
+  return pedidos.value.filter(
+    (pedido) => pedido.status === filtroStatus.value && correspondeBusca(pedido)
+  )
+})
+
+const totalPaginas = computed(() => Math.max(1, Math.ceil(pedidosFiltrados.value.length / PEDIDOS_POR_PAGINA)))
+const pedidosPaginados = computed(() => {
+  const inicio = (paginaAtual.value - 1) * PEDIDOS_POR_PAGINA
+  return pedidosFiltrados.value.slice(inicio, inicio + PEDIDOS_POR_PAGINA)
 })
 
 const gruposStatus = computed(() =>
   statusPedido
     .map((status) => ({
       ...status,
-      pedidos: pedidosFiltrados.value.filter((pedido) => pedido.status === status.valor)
+      pedidos: pedidosPaginados.value.filter((pedido) => pedido.status === status.valor)
     }))
     .filter((grupo) => grupo.pedidos.length > 0)
 )
 
-const totalNovos = computed(() => pedidos.value.filter((pedido) => pedido.status === 'novo').length)
-const totalEmAndamento = computed(() =>
-  pedidos.value.filter((pedido) =>
-    ['confirmado', 'em_separacao', 'saiu_para_entrega', 'pronto_para_retirada'].includes(pedido.status)
-  ).length
+watch([filtroStatus, buscaPedidos], () => {
+  paginaAtual.value = 1
+  pedidoExpandidoId.value = null
+})
+
+watch(totalPaginas, (quantidadePaginas) => {
+  if (paginaAtual.value > quantidadePaginas) {
+    paginaAtual.value = quantidadePaginas
+  }
+})
+
+function alternarDetalhesPedido(pedidoId: string) {
+  pedidoExpandidoId.value = pedidoId
+}
+
+function fecharDetalhesPedido() {
+  pedidoExpandidoId.value = null
+}
+
+function mudarPagina(pagina: number) {
+  paginaAtual.value = Math.min(Math.max(1, pagina), totalPaginas.value)
+  pedidoExpandidoId.value = null
+
+  if (import.meta.client) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+}
+
+const totalConfirmados = computed(() => pedidos.value.filter((pedido) => pedido.status === 'confirmado').length)
+const totalEmSeparacao = computed(() => pedidos.value.filter((pedido) => pedido.status === 'em_separacao').length)
+const totalEmEntrega = computed(() =>
+  pedidos.value.filter((pedido) => ['saiu_para_entrega', 'pronto_para_retirada'].includes(pedido.status)).length
 )
 const totalFinalizados = computed(() => pedidos.value.filter((pedido) => pedido.status === 'finalizado').length)
 const pedidosPendentesImpressao = computed(() => {
@@ -75,7 +136,7 @@ const pedidosPendentesImpressao = computed(() => {
 
   return pedidos.value.filter(
     (pedido) =>
-      ['confirmado', 'em_separacao'].includes(pedido.status)
+      pedido.status === 'confirmado'
       && !idsPedidosImpressos.has(pedido.id)
   )
 })
@@ -162,7 +223,33 @@ async function imprimirPedidos(listaPedidos: PedidoResumo[]) {
     return
   }
 
-  pedidosParaImpressao.value = listaPedidos
+  const idsNaFila = new Set([
+    ...filaImpressao.value.map((pedido) => pedido.id),
+    ...(pedidoEmImpressao.value ? [pedidoEmImpressao.value.id] : [])
+  ])
+
+  filaImpressao.value.push(
+    ...listaPedidos.filter(
+      (pedido) => !idsPedidosImpressos.has(pedido.id) && !idsNaFila.has(pedido.id)
+    )
+  )
+
+  await imprimirProximoPedido()
+}
+
+async function imprimirProximoPedido() {
+  if (!import.meta.client || pedidoEmImpressao.value || filaImpressao.value.length === 0) {
+    return
+  }
+
+  const proximoPedido = filaImpressao.value.shift()
+
+  if (!proximoPedido) {
+    return
+  }
+
+  pedidoEmImpressao.value = proximoPedido
+  pedidosParaImpressao.value = [proximoPedido]
   document.body.classList.add('imprimindo-pedido')
 
   await nextTick()
@@ -170,15 +257,11 @@ async function imprimirPedidos(listaPedidos: PedidoResumo[]) {
 }
 
 function imprimirPedido(pedido: PedidoResumo) {
-  registrarPedidosImpressos([pedido])
   void imprimirPedidos([pedido])
 }
 
 function imprimirFilaPendente() {
-  const fila = pedidosPendentesImpressao.value
-
-  registrarPedidosImpressos(fila)
-  void imprimirPedidos(fila)
+  void imprimirPedidos(pedidosPendentesImpressao.value)
 }
 
 function proximaAcao(pedido: PedidoResumo) {
@@ -208,8 +291,21 @@ function encerrarImpressao() {
     return
   }
 
-  document.body.classList.remove('imprimindo-pedido')
+  const pedidoImpresso = pedidoEmImpressao.value
+
+  if (pedidoImpresso) {
+    registrarPedidosImpressos([pedidoImpresso])
+  }
+
+  pedidoEmImpressao.value = null
   pedidosParaImpressao.value = []
+  document.body.classList.remove('imprimindo-pedido')
+
+  if (filaImpressao.value.length > 0) {
+    window.setTimeout(() => {
+      void imprimirProximoPedido()
+    }, 400)
+  }
 }
 
 function processarPedidosRecebidos() {
@@ -223,7 +319,7 @@ function processarPedidosRecebidos() {
 
   const pedidosNovosParaImpressao = listaPedidos.filter(
     (pedido) =>
-      ['confirmado', 'em_separacao'].includes(pedido.status)
+      pedido.status === 'confirmado'
       && !idsPedidosConhecidos.has(pedido.id)
       && !idsPedidosImpressos.has(pedido.id)
   )
@@ -234,7 +330,6 @@ function processarPedidosRecebidos() {
     return
   }
 
-  registrarPedidosImpressos(pedidosNovosParaImpressao)
   void imprimirPedidos(pedidosNovosParaImpressao)
 }
 
@@ -307,35 +402,56 @@ onBeforeUnmount(() => {
   >
     <p v-if="erroAdmin" class="erro-formulario">{{ erroAdmin }}</p>
 
-    <section class="metricas-admin" aria-label="Resumo dos pedidos">
-      <article class="metrica-admin metrica-admin--alerta">
-        <span>Novos</span>
-        <strong>{{ totalNovos }}</strong>
-      </article>
-      <article class="metrica-admin">
-        <span>Em andamento</span>
-        <strong>{{ totalEmAndamento }}</strong>
-      </article>
-      <article class="metrica-admin">
+    <section class="metricas-admin dashboard-pedidos" aria-label="Acompanhamento dos pedidos">
+      <button type="button" class="metrica-admin metrica-admin--alerta" :class="{ ativo: filtroStatus === 'confirmado' }" @click="filtroStatus = 'confirmado'">
+        <span>Confirmados</span>
+        <strong>{{ totalConfirmados }}</strong>
+      </button>
+      <button type="button" class="metrica-admin" :class="{ ativo: filtroStatus === 'em_separacao' }" @click="filtroStatus = 'em_separacao'">
+        <span>Separação</span>
+        <strong>{{ totalEmSeparacao }}</strong>
+      </button>
+      <button type="button" class="metrica-admin" :class="{ ativo: filtroStatus === 'entrega' }" @click="filtroStatus = 'entrega'">
+        <span>Entrega</span>
+        <strong>{{ totalEmEntrega }}</strong>
+      </button>
+      <button type="button" class="metrica-admin" :class="{ ativo: filtroStatus === 'finalizado' }" @click="filtroStatus = 'finalizado'">
         <span>Finalizados</span>
         <strong>{{ totalFinalizados }}</strong>
-      </article>
-      <article class="metrica-admin">
-        <span>Total</span>
-        <strong>{{ pedidos.length }}</strong>
-      </article>
+      </button>
     </section>
 
     <section class="painel-admin barra-operacao-pedidos">
-      <div class="filtros-pedidos" aria-label="Filtrar pedidos">
-        <button type="button" :class="{ ativo: filtroStatus === 'ativos' }" @click="filtroStatus = 'ativos'">
-          Ativos <strong>{{ totalNovos + totalEmAndamento }}</strong>
+      <label class="pesquisa-pedidos">
+        <Search :size="19" aria-hidden="true" />
+        <input
+          v-model="buscaPedidos"
+          type="search"
+          placeholder="Buscar cliente, telefone ou pedido"
+          aria-label="Buscar pedidos"
+        >
+        <button
+          v-if="buscaPedidos"
+          type="button"
+          aria-label="Limpar pesquisa"
+          @click="buscaPedidos = ''"
+        >
+          <X :size="18" aria-hidden="true" />
         </button>
+      </label>
+
+      <div class="filtros-pedidos" aria-label="Filtrar pedidos">
         <button type="button" :class="{ ativo: filtroStatus === 'confirmado' }" @click="filtroStatus = 'confirmado'">
           Confirmados <strong>{{ pedidos.filter((pedido) => pedido.status === 'confirmado').length }}</strong>
         </button>
         <button type="button" :class="{ ativo: filtroStatus === 'em_separacao' }" @click="filtroStatus = 'em_separacao'">
           Separação <strong>{{ pedidos.filter((pedido) => pedido.status === 'em_separacao').length }}</strong>
+        </button>
+        <button type="button" :class="{ ativo: filtroStatus === 'entrega' }" @click="filtroStatus = 'entrega'">
+          Entrega <strong>{{ totalEmEntrega }}</strong>
+        </button>
+        <button type="button" :class="{ ativo: filtroStatus === 'finalizado' }" @click="filtroStatus = 'finalizado'">
+          Finalizados <strong>{{ totalFinalizados }}</strong>
         </button>
         <button type="button" :class="{ ativo: filtroStatus === 'todos' }" @click="filtroStatus = 'todos'">
           Todos <strong>{{ pedidos.length }}</strong>
@@ -343,14 +459,18 @@ onBeforeUnmount(() => {
       </div>
 
       <button
+        v-if="filtroStatus === 'confirmado'"
         class="botao-admin botao-imprimir-fila"
         type="button"
         :disabled="pedidosPendentesImpressao.length === 0"
         @click="imprimirFilaPendente"
       >
         <Printer :size="17" aria-hidden="true" />
-        Imprimir fila ({{ pedidosPendentesImpressao.length }})
+        Imprimir 1 por 1 ({{ pedidosPendentesImpressao.length }})
       </button>
+      <span v-if="pedidoEmImpressao || filaImpressao.length" class="fila-impressao-status">
+        Bematech: {{ filaImpressao.length + (pedidoEmImpressao ? 1 : 0) }} na fila
+      </span>
     </section>
 
     <section v-if="pedidos.length === 0" class="painel-admin">
@@ -362,8 +482,8 @@ onBeforeUnmount(() => {
 
     <section v-else-if="pedidosFiltrados.length === 0" class="painel-admin">
       <div class="painel-estado painel-estado--compacto">
-        <strong>Nenhum pedido neste filtro</strong>
-        <span>Escolha outro status para continuar.</span>
+        <strong>{{ buscaPedidos ? 'Nenhum pedido encontrado' : 'Nenhum pedido neste filtro' }}</strong>
+        <span>{{ buscaPedidos ? 'Tente pesquisar por outro termo.' : 'Escolha outro status para continuar.' }}</span>
       </div>
     </section>
 
@@ -380,80 +500,88 @@ onBeforeUnmount(() => {
 
       <div v-else class="lista-admin lista-pedidos-admin">
         <article v-for="pedido in grupo.pedidos" :key="pedido.id" class="pedido-admin pedido-admin--detalhado">
-          <div class="pedido-admin__topo">
+          <button
+            class="pedido-admin__topo pedido-admin__resumo"
+            type="button"
+            :aria-expanded="pedidoExpandidoId === pedido.id"
+            @click="alternarDetalhesPedido(pedido.id)"
+          >
             <div>
               <strong>{{ pedido.nomeCliente }}</strong>
               <span>#{{ pedido.id.slice(0, 8) }} - {{ formatarData(pedido.criadoEm) }}</span>
+              <small>Abrir pedido</small>
             </div>
             <div class="pedido-admin__valor-status">
               <span class="status-admin">{{ textoStatus(pedido.status) }}</span>
               <strong>{{ formatarCentavos(pedido.totalCentavos) }}</strong>
             </div>
-          </div>
+          </button>
+
+        </article>
+      </div>
+    </section>
+
+    <nav v-if="totalPaginas > 1" class="paginacao-pedidos" aria-label="Paginação dos pedidos">
+      <button type="button" :disabled="paginaAtual === 1" @click="mudarPagina(paginaAtual - 1)">
+        Anterior
+      </button>
+      <span>Página <strong>{{ paginaAtual }}</strong> de {{ totalPaginas }}</span>
+      <button type="button" :disabled="paginaAtual === totalPaginas" @click="mudarPagina(paginaAtual + 1)">
+        Próxima
+      </button>
+    </nav>
+
+    <Teleport to="body">
+      <div v-if="pedidoSelecionado" class="modal-pedido" role="presentation" @click.self="fecharDetalhesPedido">
+        <article class="modal-pedido__conteudo" role="dialog" aria-modal="true" aria-labelledby="titulo-pedido-selecionado">
+          <header class="modal-pedido__topo">
+            <div>
+              <span>Pedido #{{ pedidoSelecionado.id.slice(0, 8) }}</span>
+              <h2 id="titulo-pedido-selecionado">{{ pedidoSelecionado.nomeCliente }}</h2>
+              <small>{{ formatarData(pedidoSelecionado.criadoEm) }}</small>
+            </div>
+            <button type="button" aria-label="Fechar detalhes" @click="fecharDetalhesPedido">
+              <X :size="22" aria-hidden="true" />
+            </button>
+          </header>
 
           <div class="pedido-admin__grid">
             <section class="pedido-admin__bloco">
               <strong>Cliente</strong>
-              <span>{{ pedido.telefoneCliente }}</span>
-              <span>{{ textoPagamento(pedido) }}</span>
+              <span>{{ pedidoSelecionado.telefoneCliente }}</span>
+              <span>{{ textoPagamento(pedidoSelecionado) }}</span>
             </section>
-
             <section class="pedido-admin__bloco">
-              <strong>{{ textoEntrega(pedido) }}</strong>
-              <span v-for="linha in linhasEndereco(pedido.enderecoEntrega)" :key="linha">
-                {{ linha }}
-              </span>
+              <strong>{{ textoEntrega(pedidoSelecionado) }}</strong>
+              <span v-for="linha in linhasEndereco(pedidoSelecionado.enderecoEntrega)" :key="linha">{{ linha }}</span>
             </section>
-
             <section class="pedido-admin__bloco pedido-admin__bloco--itens">
               <strong>Itens</strong>
               <ul>
-                <li v-for="item in pedido.itens" :key="item.id">
+                <li v-for="item in pedidoSelecionado.itens" :key="item.id">
                   <span>{{ item.quantidade }}x {{ item.nomeProduto }}</span>
                   <strong>{{ formatarCentavos(item.subtotalCentavos) }}</strong>
                 </li>
               </ul>
             </section>
-
-            <section class="pedido-admin__bloco">
+            <section class="pedido-admin__bloco modal-pedido__acoes">
               <strong>Status</strong>
-              <select
-                :value="pedido.status"
-                :disabled="statusAtualizando === pedido.id"
-                @change="alterarStatusPeloEvento(pedido, $event)"
-              >
-                <option v-for="status in statusPedido" :key="status.valor" :value="status.valor">
-                  {{ status.texto }}
-                </option>
+              <select :value="pedidoSelecionado.status" :disabled="statusAtualizando === pedidoSelecionado.id" @change="alterarStatusPeloEvento(pedidoSelecionado, $event)">
+                <option v-for="status in statusPedido" :key="status.valor" :value="status.valor">{{ status.texto }}</option>
               </select>
-              <span>{{ statusAtualizando === pedido.id ? 'Atualizando...' : textoStatus(pedido.status) }}</span>
-              <button
-                class="botao-admin botao-admin--secundario botao-admin--compacto"
-                type="button"
-                @click="imprimirPedido(pedido)"
-              >
-                <Printer :size="16" aria-hidden="true" />
-                Imprimir
+              <button v-if="pedidoSelecionado.status === 'confirmado'" class="botao-admin botao-admin--secundario botao-admin--compacto" type="button" @click="imprimirPedido(pedidoSelecionado)">
+                <Printer :size="16" aria-hidden="true" /> Imprimir
               </button>
-              <button
-                v-if="proximaAcao(pedido)"
-                class="botao-admin botao-admin--compacto"
-                type="button"
-                :disabled="statusAtualizando === pedido.id"
-                @click="alterarStatus(pedido, proximaAcao(pedido)!.status)"
-              >
-                <component :is="proximaAcao(pedido)!.icone" :size="16" aria-hidden="true" />
-                {{ proximaAcao(pedido)!.texto }}
+              <button v-if="proximaAcao(pedidoSelecionado)" class="botao-admin botao-admin--compacto" type="button" :disabled="statusAtualizando === pedidoSelecionado.id" @click="alterarStatus(pedidoSelecionado, proximaAcao(pedidoSelecionado)!.status)">
+                <component :is="proximaAcao(pedidoSelecionado)!.icone" :size="16" aria-hidden="true" />
+                {{ proximaAcao(pedidoSelecionado)!.texto }}
               </button>
             </section>
           </div>
-
-          <p v-if="pedido.observacoes" class="pedido-admin__observacao">
-            {{ pedido.observacoes }}
-          </p>
+          <p v-if="pedidoSelecionado.observacoes" class="pedido-admin__observacao">{{ pedidoSelecionado.observacoes }}</p>
         </article>
       </div>
-    </section>
+    </Teleport>
 
     <section class="impressao-pedidos" aria-hidden="true">
       <article v-for="pedido in pedidosParaImpressao" :key="pedido.id" class="cupom-pedido">

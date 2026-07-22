@@ -10,6 +10,9 @@ export default defineNuxtConfig({
     databaseSsl: process.env.DATABASE_SSL || 'auto',
     adminSenha: process.env.ADMIN_SENHA || 'admin123',
     wmsApiToken: process.env.WMS_API_TOKEN || '',
+    onepetBaseUrl: process.env.ONEPET_BASE_URL || 'https://api-v2.onepet.com.br',
+    onepetTokenMatriz: process.env.ONEPET_TOKEN_MATRIZ || '',
+    onepetTokenFilial: process.env.ONEPET_TOKEN_FILIAL || '',
     public: {
       storeName: process.env.NUXT_PUBLIC_STORE_NAME || 'AgroPet Fazendinha',
       socialLinks: {

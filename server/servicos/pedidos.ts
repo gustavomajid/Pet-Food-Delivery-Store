@@ -8,6 +8,7 @@ import { repositorioPedidos } from '../repositorios/pedidos'
 import {
   MENSAGEM_LOJA_FECHADA,
   normalizarModoFuncionamentoOnline,
+  obterDisponibilidadeEntrega,
   obterFuncionamentoLoja
 } from './funcionamento'
 import type { PedidoResumo, StatusPedido } from '../../types/loja'
@@ -127,6 +128,16 @@ export async function criarPedido(banco: Banco, entrada: PedidoEntrada) {
       data: {
         funcionamento
       }
+    })
+  }
+
+  const disponibilidadeEntrega = obterDisponibilidadeEntrega()
+
+  if (entrada.tipoEntrega !== 'retirada' && !disponibilidadeEntrega.disponivel) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: disponibilidadeEntrega.mensagem,
+      data: { disponibilidadeEntrega }
     })
   }
 
