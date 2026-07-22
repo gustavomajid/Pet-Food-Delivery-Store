@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { PackagePlus, Save, Trash2 } from '@lucide/vue'
+import { PackagePlus, RefreshCw, Save, Trash2 } from '@lucide/vue'
 import type { Categoria, Produto } from '~/types/loja'
 
 type ProdutoFormulario = {
@@ -25,6 +25,8 @@ const erroAdmin = ref('')
 const erroUploadImagem = ref('')
 const salvandoProduto = ref(false)
 const enviandoImagem = ref(false)
+const sincronizandoOnePet = ref(false)
+const resultadoOnePet = ref('')
 
 const produtoVazio = (): ProdutoFormulario => ({
   id: null,
@@ -187,6 +189,25 @@ async function inativarProduto(produto: Produto) {
   })
   await recarregarProdutos()
 }
+
+async function sincronizarOnePet() {
+  sincronizandoOnePet.value = true
+  erroAdmin.value = ''
+  resultadoOnePet.value = ''
+
+  try {
+    const resultado = await $fetch<{ recebidos: number; criados: number; atualizados: number }>(
+      '/api/admin/integracoes/onepet/sincronizar',
+      { method: 'POST', credentials: 'include' }
+    )
+    resultadoOnePet.value = `${resultado.recebidos} recebidos, ${resultado.criados} novos e ${resultado.atualizados} atualizados.`
+    await carregarProdutos()
+  } catch (error) {
+    erroAdmin.value = error instanceof Error ? error.message : 'Nao foi possivel sincronizar com a OnePet.'
+  } finally {
+    sincronizandoOnePet.value = false
+  }
+}
 </script>
 
 <template>
@@ -197,6 +218,20 @@ async function inativarProduto(produto: Produto) {
     @recarregar="carregarProdutos"
   >
     <p v-if="erroAdmin" class="erro-formulario">{{ erroAdmin }}</p>
+
+    <section class="painel-admin">
+      <div class="titulo-secao">
+        <div>
+          <h1>Estoque OnePet</h1>
+          <span>Produtos, precos e quantidades do sistema oficial.</span>
+        </div>
+        <button class="botao-admin" type="button" :disabled="sincronizandoOnePet" @click="sincronizarOnePet">
+          <RefreshCw :size="17" :class="{ girando: sincronizandoOnePet }" aria-hidden="true" />
+          {{ sincronizandoOnePet ? 'Sincronizando...' : 'Sincronizar' }}
+        </button>
+      </div>
+      <p v-if="resultadoOnePet" class="aviso-formulario">{{ resultadoOnePet }}</p>
+    </section>
 
     <section class="painel-admin">
       <div class="titulo-secao">

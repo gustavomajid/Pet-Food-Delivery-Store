@@ -20,6 +20,8 @@ export type FuncionamentoLoja = {
   manual: boolean
   horario: string
   mensagem: string
+  entregaDisponivel: boolean
+  mensagemEntrega: string
 }
 
 export type Produto = {

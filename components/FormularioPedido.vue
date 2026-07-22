@@ -108,6 +108,7 @@ const funcionamentoLoja = computed(
   () => dadosConfiguracoes.value?.configuracoes.funcionamento ?? FUNCIONAMENTO_LOJA_PADRAO
 )
 const lojaOnlineAberta = computed(() => funcionamentoLoja.value.aberta)
+const entregaDisponivel = computed(() => funcionamentoLoja.value.entregaDisponivel)
 const pedidoAtivoFormulario = computed(() =>
   obterPedidoAtivoPorTelefone(formulario.telefoneCliente || clienteAtual.value?.telefoneCliente)
 )
@@ -533,6 +534,11 @@ onMounted(() => {
 
 watch(clienteAtual, aplicarClienteReconhecido)
 watch(tipoEntrega, ajustarEnderecoPorEntrega)
+watch(entregaDisponivel, (disponivel) => {
+  if (!disponivel && tipoEntrega.value !== 'retirada') {
+    tipoEntrega.value = 'retirada'
+  }
+}, { immediate: true })
 onBeforeUnmount(() => {
   if (temporizadorBuscaCliente) {
     clearTimeout(temporizadorBuscaCliente)
@@ -582,14 +588,27 @@ onBeforeUnmount(() => {
       <fieldset>
         <legend>Entrega</legend>
         <div class="opcoes-recebimento-formulario">
-          <label v-for="opcao in opcoesEntrega" :key="opcao.valor">
-            <input v-model="tipoEntrega" type="radio" name="tipoEntrega" :value="opcao.valor">
+          <label
+            v-for="opcao in opcoesEntrega"
+            :key="opcao.valor"
+            :class="{ indisponivel: opcao.valor !== 'retirada' && !entregaDisponivel }"
+          >
+            <input
+              v-model="tipoEntrega"
+              type="radio"
+              name="tipoEntrega"
+              :value="opcao.valor"
+              :disabled="opcao.valor !== 'retirada' && !entregaDisponivel"
+            >
             <span>
               <component :is="opcao.icone" :size="18" aria-hidden="true" />
               {{ opcao.texto }}
             </span>
           </label>
         </div>
+        <p v-if="!entregaDisponivel" class="aviso-formulario">
+          {{ funcionamentoLoja.mensagemEntrega }}
+        </p>
       </fieldset>
 
       <section v-if="precisaEnderecoEntrega" class="grupo-endereco" aria-label="Endereco de entrega">

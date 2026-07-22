@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Clock, Home, LoaderCircle, MapPin, Phone, Search, Store, Truck, X } from '@lucide/vue'
 import type { Component } from 'vue'
-import type { TipoEntrega } from '~/types/loja'
+import type { ConfiguracoesLoja, TipoEntrega } from '~/types/loja'
+import { criarConfiguracoesLojaPadrao } from '~/composables/useConfiguracoesLoja'
 
 const { tipoEntrega } = useCarrinho()
 const {
@@ -18,6 +19,9 @@ const {
   carregarHistoricoCliente,
   obterPedidoAtivoPorTelefone
 } = useHistoricoPedidos()
+const { data: dadosConfiguracoes } = await useFetch<{ configuracoes: ConfiguracoesLoja }>('/api/configuracoes', {
+  default: () => ({ configuracoes: criarConfiguracoesLojaPadrao() })
+})
 
 const telefone = ref('')
 const nome = ref('')
@@ -49,6 +53,10 @@ const clienteTemEndereco = computed(() =>
 const pedidoAtivoIdentificado = computed(() =>
   obterPedidoAtivoPorTelefone(telefone.value || clienteAtual.value?.telefoneCliente)
 )
+const funcionamentoLoja = computed(() =>
+  dadosConfiguracoes.value?.configuracoes.funcionamento ?? criarConfiguracoesLojaPadrao().funcionamento
+)
+const entregaDisponivel = computed(() => funcionamentoLoja.value.entregaDisponivel)
 
 function preencherFormulario() {
   if (!clienteAtual.value) {
@@ -141,6 +149,10 @@ function aoDigitarTelefone() {
 }
 
 function selecionarRecebimento(valor: TipoEntrega) {
+  if (valor !== 'retirada' && !entregaDisponivel.value) {
+    return
+  }
+
   tipoEntrega.value = valor
   enderecoSelecionado.value = valor === 'entrega_local' && clienteTemEndereco.value
 
@@ -189,6 +201,11 @@ watch(clienteAtual, (cliente) => {
     void carregarHistoricoCliente(cliente.telefoneCliente)
   }
 })
+watch(entregaDisponivel, (disponivel) => {
+  if (!disponivel && tipoEntrega.value !== 'retirada') {
+    tipoEntrega.value = 'retirada'
+  }
+}, { immediate: true })
 
 onBeforeUnmount(() => {
   if (temporizadorBuscaCliente) {
@@ -279,12 +296,16 @@ onBeforeUnmount(() => {
               :key="opcao.valor"
               type="button"
               :class="{ ativo: tipoEntrega === opcao.valor }"
+              :disabled="opcao.valor !== 'retirada' && !entregaDisponivel"
               @click="selecionarRecebimento(opcao.valor)"
             >
               <component :is="opcao.icone" :size="20" aria-hidden="true" />
               {{ opcao.texto }}
             </button>
           </div>
+          <p v-if="!entregaDisponivel" class="aviso-formulario">
+            {{ funcionamentoLoja.mensagemEntrega }}
+          </p>
         </section>
 
         <footer class="modal-identificacao__rodape">

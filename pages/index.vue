@@ -27,6 +27,7 @@ const marca = ref('')
 const marcaAplicada = ref('')
 const paginaAtual = ref(1)
 let temporizadorBusca: ReturnType<typeof setTimeout> | undefined
+let temporizadorAvisoCarrinho: ReturnType<typeof setTimeout> | undefined
 const redesSociais = computed<Array<{ nome: string; href: string; icone: TipoRedeSocial }>>(() => [
   { nome: 'WhatsApp', href: config.public.socialLinks.whatsapp, icone: 'whatsapp' },
   { nome: 'Instagram', href: config.public.socialLinks.instagram, icone: 'instagram' },
@@ -137,6 +138,7 @@ const {
   recarregarPedido
 } = useHistoricoPedidos()
 const modalIdentificacaoSolicitado = ref(false)
+const avisoCarrinho = ref('')
 const pedidosCliente = computed(() => obterHistoricoPorTelefone(clienteAtual.value?.telefoneCliente))
 const quantidadePedidosCliente = computed(() => pedidosCliente.value.length)
 const pedidosBadgeTexto = computed(() => {
@@ -190,6 +192,11 @@ function irParaPagina(pagina: number) {
 }
 
 function adicionarProdutoAoCarrinho(produto: Produto) {
+  if (lojaOnlineFechada.value) {
+    mostrarAvisoCarrinho(`${funcionamentoLoja.value.mensagem} Nao e possivel adicionar itens agora.`)
+    return
+  }
+
   const pedidoAtivo = obterPedidoAtivoPorTelefone(clienteAtual.value?.telefoneCliente)
 
   if (pedidoAtivo) {
@@ -199,6 +206,22 @@ function adicionarProdutoAoCarrinho(produto: Produto) {
   }
 
   adicionarProduto(produto)
+
+  if (!funcionamentoLoja.value.entregaDisponivel) {
+    mostrarAvisoCarrinho(`Item adicionado. ${funcionamentoLoja.value.mensagemEntrega}`)
+  }
+}
+
+function mostrarAvisoCarrinho(mensagem: string) {
+  avisoCarrinho.value = mensagem
+
+  if (temporizadorAvisoCarrinho) {
+    clearTimeout(temporizadorAvisoCarrinho)
+  }
+
+  temporizadorAvisoCarrinho = setTimeout(() => {
+    avisoCarrinho.value = ''
+  }, 5000)
 }
 
 function abrirIdentificacaoSeAtivo() {
@@ -219,6 +242,10 @@ onMounted(carregarHistoricoLocal)
 onBeforeUnmount(() => {
   if (temporizadorBusca) {
     clearTimeout(temporizadorBusca)
+  }
+
+  if (temporizadorAvisoCarrinho) {
+    clearTimeout(temporizadorAvisoCarrinho)
   }
 })
 watch([busca, marca], () => {
@@ -301,6 +328,11 @@ watch(dadosConfiguracoes, abrirIdentificacaoSeAtivo, { deep: true })
           <span>{{ funcionamentoLoja.mensagem }}</span>
           <small>{{ funcionamentoLoja.horario }}</small>
         </div>
+      </section>
+
+      <section v-if="avisoCarrinho" class="aviso-adicionar-carrinho" role="alert">
+        <Clock :size="20" aria-hidden="true" />
+        <strong>{{ avisoCarrinho }}</strong>
       </section>
 
       <div class="busca-filtros">

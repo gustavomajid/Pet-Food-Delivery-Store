@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CheckCircle2, ClipboardList, Clock, Package, Settings, ShoppingBag, Tags, Truck } from '@lucide/vue'
-import type { PedidoResumo, StatusPedido } from '~/types/loja'
+import type { PedidoResumo } from '~/types/loja'
 
 const { formatarCentavos } = useDinheiro()
 
@@ -16,7 +16,6 @@ const {
 })
 
 const pedidos = computed(() => dadosPedidos.value?.pedidos ?? [])
-const pedidosRecentes = computed(() => pedidos.value.slice(0, 5))
 const pedidosNovos = computed(() => pedidos.value.filter((pedido) => pedido.status === 'novo'))
 const pedidosEmAberto = computed(() =>
   pedidos.value.filter((pedido) =>
@@ -35,16 +34,6 @@ const faturamentoHojeCentavos = computed(() => {
     )
     .reduce((total, pedido) => total + pedido.totalCentavos, 0)
 })
-
-const statusPedido: Record<StatusPedido, string> = {
-  novo: 'Novo',
-  confirmado: 'Confirmado',
-  em_separacao: 'Em separacao',
-  saiu_para_entrega: 'Saiu para entrega',
-  pronto_para_retirada: 'Pronto para retirada',
-  finalizado: 'Finalizado',
-  cancelado: 'Cancelado'
-}
 
 const atalhosAdmin = [
   {
@@ -78,15 +67,6 @@ const atalhosAdmin = [
     icone: Settings
   }
 ]
-
-function formatarData(valor: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(valor))
-}
 
 async function carregarDashboard() {
   erroAdmin.value = ''
@@ -132,37 +112,6 @@ async function carregarDashboard() {
         <span>Faturamento hoje</span>
         <strong>{{ formatarCentavos(faturamentoHojeCentavos) }}</strong>
       </article>
-    </section>
-
-    <section class="painel-admin">
-      <div class="titulo-secao">
-        <h1>Pedidos que chegaram</h1>
-        <NuxtLink class="botao-admin botao-admin--secundario" to="/admin/pedidos">
-          Ver todos
-        </NuxtLink>
-      </div>
-
-      <div v-if="pedidosRecentes.length === 0" class="painel-estado painel-estado--compacto">
-        <strong>Nenhum pedido ainda</strong>
-        <span>Os pedidos feitos pela loja aparecem aqui automaticamente.</span>
-      </div>
-
-      <div v-else class="lista-admin">
-        <article v-for="pedido in pedidosRecentes" :key="pedido.id" class="pedido-admin pedido-admin--resumo">
-          <div class="pedido-admin__topo">
-            <div>
-              <strong>{{ pedido.nomeCliente }}</strong>
-              <span>{{ formatarData(pedido.criadoEm) }} - {{ pedido.telefoneCliente }}</span>
-            </div>
-            <strong>{{ formatarCentavos(pedido.totalCentavos) }}</strong>
-          </div>
-
-          <div class="pedido-admin__linha">
-            <span class="status-admin">{{ statusPedido[pedido.status] }}</span>
-            <span>{{ pedido.itens?.length ?? 0 }} item(ns)</span>
-          </div>
-        </article>
-      </div>
     </section>
 
     <section class="admin-menu" aria-label="Areas administrativas">
