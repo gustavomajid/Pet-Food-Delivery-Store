@@ -6,9 +6,9 @@ export type ModoFuncionamentoOnline = 'automatico' | 'aberta' | 'fechada'
 const MODOS_FUNCIONAMENTO: ModoFuncionamentoOnline[] = ['automatico', 'aberta', 'fechada']
 
 export const HORARIO_FUNCIONAMENTO_LOJA =
-  'Loja online aberta de segunda a sabado, das 08h as 18h. Domingo fechado.'
+  'Segunda a sabado, das 08h as 18h.'
 export const MENSAGEM_LOJA_FECHADA =
-  'A loja online esta fechada no momento. Os pedidos online funcionam de segunda a sabado, das 08h as 18h.'
+  'Loja fechada. Volte das 08h as 18h.'
 
 const formatadorHorarioLoja = new Intl.DateTimeFormat('en-US', {
   timeZone: FUSO_HORARIO_LOJA,
@@ -86,10 +86,10 @@ export function obterFuncionamentoLoja(
     horario: HORARIO_FUNCIONAMENTO_LOJA,
     mensagem: aberta
       ? manual
-        ? 'Loja online aberta manualmente para testes.'
-        : 'Loja online aberta para pedidos.'
+        ? 'Loja aberta para testes.'
+        : 'Loja aberta.'
       : manual
-        ? 'Loja online fechada manualmente.'
+        ? 'Loja fechada.'
         : MENSAGEM_LOJA_FECHADA
   }
 }

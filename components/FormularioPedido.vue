@@ -554,9 +554,8 @@ onBeforeUnmount(() => {
       <section v-if="!lojaOnlineAberta" class="aviso-loja-fechada aviso-loja-fechada--compacto">
         <Clock :size="20" aria-hidden="true" />
         <div>
-          <strong>Loja online fechada</strong>
+          <strong>Loja fechada</strong>
           <span>{{ funcionamentoLoja.mensagem }}</span>
-          <small>{{ funcionamentoLoja.horario }}</small>
         </div>
       </section>
 
