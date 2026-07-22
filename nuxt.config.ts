@@ -5,7 +5,9 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   devtools: { enabled: true },
   runtimeConfig: {
+    appEnvironment: process.env.APP_ENV || (process.env.VERCEL_ENV ?? 'local'),
     databaseUrl: process.env.DATABASE_URL || (process.env.NODE_ENV === 'production' ? '' : bancoLocal),
+    databaseSsl: process.env.DATABASE_SSL || 'auto',
     adminSenha: process.env.ADMIN_SENHA || 'admin123',
     wmsApiToken: process.env.WMS_API_TOKEN || '',
     public: {

@@ -403,7 +403,7 @@ async function consultarCep() {
   consultandoCep.value = true
 
   try {
-    const endereco = await $fetch<EnderecoCep>(`/api/cep/${cep}`)
+    const endereco = await $fetch<EnderecoCep>(`/api/clientes/cep/${cep}`)
 
     if (digitosCep() !== cep) {
       return
